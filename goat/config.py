@@ -35,6 +35,16 @@ class GoatSettings(BaseSettings):
     processed_data_dir: Path | None = None
     log_level: str = "INFO"
 
+    # Provider settings (v0.2 Market Data Acquisition)
+    deriv_ws_endpoint: str = "wss://ws.derivws.com/websockets/v3"
+    deriv_app_id: int = 1089
+    collection_symbols: list[str] = ["R_10", "R_50", "R_75"]
+    reconnect_max_retries: int = 10
+    reconnect_base_delay: float = 1.0
+    reconnect_max_delay: float = 60.0
+    connection_timeout: float = 10.0
+    heartbeat_interval: float = 30.0
+
     def get_raw_data_dir(self) -> Path:
         """Return the raw data directory, defaulting to ``data_dir/raw``."""
         return self.raw_data_dir or self.data_dir / "raw"
