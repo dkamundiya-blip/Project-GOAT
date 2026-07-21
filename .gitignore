@@ -1,0 +1,48 @@
+# ============================================================
+# Project GOAT — Git Ignore Rules
+# ============================================================
+
+# --- Credentials & Secrets (NEVER commit) ---
+.env
+*.key
+*.pem
+
+# --- Data (raw and processed are generated, not committed) ---
+data/raw/
+data/processed/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# --- Virtual Environments ---
+venv/
+.venv/
+env/
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- Testing ---
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Jupyter ---
+.ipynb_checkpoints/
