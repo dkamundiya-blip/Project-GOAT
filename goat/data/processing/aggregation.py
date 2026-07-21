@@ -23,6 +23,10 @@ _log = get_logger("processing.aggregation")
 # changes required.
 TIMEFRAME_FREQ: dict[Timeframe, str] = {
     Timeframe.M1: "1min",
+    Timeframe.M5: "5min",
+    Timeframe.M15: "15min",
+    Timeframe.M30: "30min",
+    Timeframe.H1: "1h",
 }
 
 

@@ -45,6 +45,16 @@ class GoatSettings(BaseSettings):
     connection_timeout: float = 10.0
     heartbeat_interval: float = 30.0
 
+    # Research settings (v0.3 Quantitative Research)
+    research_data_dir: Path | None = None
+    research_symbols: list[str] = ["R_10", "R_50", "R_75"]
+    research_timeframes: list[str] = ["M1", "M5", "M15"]
+    rolling_windows: list[int] = [10, 20, 50, 100]
+    autocorr_lags: list[int] = [1, 2, 3, 5, 10]
+    forward_horizons: list[int] = [1, 3, 5, 10, 20]
+    impulse_std_threshold: float = 2.0
+    allow_holdout_access: bool = False
+
     def get_raw_data_dir(self) -> Path:
         """Return the raw data directory, defaulting to ``data_dir/raw``."""
         return self.raw_data_dir or self.data_dir / "raw"
@@ -52,3 +62,7 @@ class GoatSettings(BaseSettings):
     def get_processed_data_dir(self) -> Path:
         """Return the processed data directory, defaulting to ``data_dir/processed``."""
         return self.processed_data_dir or self.data_dir / "processed"
+
+    def get_research_data_dir(self) -> Path:
+        """Return the research data directory, defaulting to ``data_dir/research``."""
+        return self.research_data_dir or self.data_dir / "research"

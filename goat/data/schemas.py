@@ -46,14 +46,19 @@ class DataSource(str, enum.Enum):
 class Timeframe(str, enum.Enum):
     """Supported OHLC candle timeframes.
 
-    Initially only M1 is implemented.  Add new members here to support
-    additional aggregation periods — no other schema changes required.
-
     Members:
         M1: One-minute candles.
+        M5: Five-minute candles.
+        M15: Fifteen-minute candles.
+        M30: Thirty-minute candles.
+        H1: One-hour candles.
     """
 
     M1 = "M1"
+    M5 = "M5"
+    M15 = "M15"
+    M30 = "M30"
+    H1 = "H1"
 
 
 class Tick(BaseModel):
