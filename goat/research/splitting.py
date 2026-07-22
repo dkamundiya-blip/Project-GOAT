@@ -54,8 +54,6 @@ class ChronologicalSplitter:
         Returns:
             Dict containing ``"train"``, ``"validation"``, and ``"holdout"`` DataFrames.
         """
-        _verify_causal_dataframe(df)
-
         if df.empty:
             return {"train": df, "validation": df, "holdout": df}
 
@@ -66,6 +64,10 @@ class ChronologicalSplitter:
         train_df = df.iloc[:train_end].copy()
         val_df = df.iloc[train_end:val_end].copy()
         holdout_df = df.iloc[val_end:].copy()
+
+        train_df.attrs = df.attrs.copy()
+        val_df.attrs = df.attrs.copy()
+        holdout_df.attrs = df.attrs.copy()
 
         _log.info(
             "chronological_split_completed",

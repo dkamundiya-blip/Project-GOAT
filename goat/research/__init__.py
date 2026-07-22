@@ -11,6 +11,15 @@ from goat.research.splitting import ChronologicalSplitter
 from goat.research.stats import calculate_distribution_stats, calculate_serial_dependence
 from goat.research.sufficiency import DatasetSufficiencyReport, evaluate_dataset_sufficiency
 
+from goat.research.hypothesis import (
+    EdgeRegistry,
+    Experiment,
+    ExperimentRunner,
+    HypothesisDefinition,
+    HypothesisReportGenerator,
+    HypothesisResult,
+)
+
 __all__ = [
     "DatasetManifest",
     "ResearchDatasetBuilder",
@@ -27,4 +36,10 @@ __all__ = [
     "DatasetSufficiencyReport",
     "evaluate_dataset_sufficiency",
     "ResearchReportGenerator",
+    "HypothesisDefinition",
+    "HypothesisResult",
+    "Experiment",
+    "ExperimentRunner",
+    "EdgeRegistry",
+    "HypothesisReportGenerator",
 ]

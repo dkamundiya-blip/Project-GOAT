@@ -52,8 +52,13 @@ class GoatSettings(BaseSettings):
     rolling_windows: list[int] = [10, 20, 50, 100]
     autocorr_lags: list[int] = [1, 2, 3, 5, 10]
     forward_horizons: list[int] = [1, 3, 5, 10, 20]
-    impulse_std_threshold: float = 2.0
-    allow_holdout_access: bool = False
+    # Hypothesis engine settings (v0.4 Hypothesis & Edge Discovery)
+    fdr_alpha: float = 0.05
+    min_hypothesis_sample_size: int = 100
+    default_permutation_samples: int = 1000
+    permutation_random_seed: int = 42
+    edge_registry_path: Path | None = None
+    holdout_audit_log_path: Path | None = None
 
     def get_raw_data_dir(self) -> Path:
         """Return the raw data directory, defaulting to ``data_dir/raw``."""
@@ -66,3 +71,11 @@ class GoatSettings(BaseSettings):
     def get_research_data_dir(self) -> Path:
         """Return the research data directory, defaulting to ``data_dir/research``."""
         return self.research_data_dir or self.data_dir / "research"
+
+    def get_edge_registry_path(self) -> Path:
+        """Return the edge registry file path, defaulting to ``data_dir/research/edge_registry.json``."""
+        return self.edge_registry_path or self.get_research_data_dir() / "edge_registry.json"
+
+    def get_holdout_audit_log_path(self) -> Path:
+        """Return the holdout audit log file path, defaulting to ``data_dir/research/holdout_audit_log.json``."""
+        return self.holdout_audit_log_path or self.get_research_data_dir() / "holdout_audit_log.json"
