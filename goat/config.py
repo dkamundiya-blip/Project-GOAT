@@ -60,6 +60,22 @@ class GoatSettings(BaseSettings):
     edge_registry_path: Path | None = None
     holdout_audit_log_path: Path | None = None
 
+    # Orchestration settings (v0.5 Experiment Orchestrator)
+    campaign_data_dir: Path | None = None
+    max_worker_threads: int = 4
+    checkpoint_interval_tasks: int = 10
+    master_campaign_seed: int = 42
+    max_experiment_retries: int = 2
+
+    # Version Tags Hierarchy (v0.5)
+    manifest_schema_version: int = 1
+    provenance_schema_version: int = 1
+    experiment_hash_schema: int = 1
+    experiment_hash_algorithm: str = "SHA256"
+    checkpoint_format_version: int = 1
+    log_schema_version: int = 1
+    report_schema_version: int = 1
+
     def get_raw_data_dir(self) -> Path:
         """Return the raw data directory, defaulting to ``data_dir/raw``."""
         return self.raw_data_dir or self.data_dir / "raw"
@@ -71,6 +87,10 @@ class GoatSettings(BaseSettings):
     def get_research_data_dir(self) -> Path:
         """Return the research data directory, defaulting to ``data_dir/research``."""
         return self.research_data_dir or self.data_dir / "research"
+
+    def get_campaign_data_dir(self) -> Path:
+        """Return the campaign data directory, defaulting to ``data_dir/campaigns``."""
+        return self.campaign_data_dir or self.data_dir / "campaigns"
 
     def get_edge_registry_path(self) -> Path:
         """Return the edge registry file path, defaulting to ``data_dir/research/edge_registry.json``."""

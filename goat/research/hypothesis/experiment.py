@@ -70,6 +70,7 @@ class ExperimentRunner:
         symbol: str,
         timeframe: str,
         allow_holdout: bool = False,
+        seed: int | None = None,
     ) -> HypothesisResult:
         """Evaluate a single hypothesis against a specific partition DataFrame.
 
@@ -172,7 +173,7 @@ class ExperimentRunner:
             cond_outcomes,
             base_outcomes,
             test_type=hypothesis.statistical_test,
-            seed=self.settings.permutation_random_seed,
+            seed=seed if seed is not None else self.settings.permutation_random_seed,
             num_permutations=self.settings.default_permutation_samples,
         )
 
