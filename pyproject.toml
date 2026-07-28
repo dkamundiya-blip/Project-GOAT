@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "project-goat"
-version = "0.1.0"
-description = "Project GOAT — Generative Opportunity Analysis & Trading: Quantitative Data Foundation"
+version = "0.6.0"
+description = "Project GOAT — Generative Opportunity Analysis & Trading: Quantitative Validation Platform"
 requires-python = ">=3.12"
 dependencies = [
     "pandas>=2.2",

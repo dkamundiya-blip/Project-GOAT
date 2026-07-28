@@ -64,8 +64,8 @@ def make_dummy_hypothesis(hyp_id: str = "HYP-P2-1") -> HypothesisDefinition:
 
 
 def test_goat_version_centralization_and_experiment_id_byte_invariance() -> None:
-    """2, 3, 4, 5. GOAT_VERSION equals 'v0.5.0', dataset_version stays 'v0.3.0', and experiment_id is byte-for-byte invariant."""
-    assert GOAT_VERSION == "v0.5.0"
+    """2, 3, 4, 5. GOAT_VERSION equals '0.6.0', dataset_version stays 'v0.3.0', and experiment_id is byte-for-byte invariant."""
+    assert GOAT_VERSION == "0.6.0"
 
     hyp = make_dummy_hypothesis()
     exp_id = compute_experiment_id(

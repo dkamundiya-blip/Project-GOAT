@@ -7,9 +7,14 @@
 *.key
 *.pem
 
-# --- Data (raw and processed are generated, not committed) ---
+# --- Data (raw, processed, research, edge_reports, and campaigns are generated, not committed) ---
 data/raw/
 data/processed/
+data/research/
+data/campaigns/
+data/edge_reports/
+*.db
+*.sqlite
 
 # --- Python ---
 __pycache__/
@@ -46,4 +51,3 @@ desktop.ini
 
 # --- Jupyter ---
 .ipynb_checkpoints/
-data/research/
