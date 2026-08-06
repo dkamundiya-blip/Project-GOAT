@@ -1,0 +1,72 @@
+"""
+Project GOAT v0.8 — Institutional Research Archive Core Enumerations
+"""
+
+from enum import Enum
+
+
+class ArchiveSubsystemOrigin(str, Enum):
+    """Originating subsystem enumeration for archived records."""
+    SCIENTIFIC_RESEARCH = "SCIENTIFIC_RESEARCH"
+    KNOWLEDGE_ENGINE = "KNOWLEDGE_ENGINE"
+    SCIENTIFIC_INTELLIGENCE = "SCIENTIFIC_INTELLIGENCE"
+    LIVE_MARKET_DATA = "LIVE_MARKET_DATA"
+    MARKET_STATE = "MARKET_STATE"
+    BROKER_ADAPTER = "BROKER_ADAPTER"
+    EXECUTION_ENGINE = "EXECUTION_ENGINE"
+    PORTFOLIO_ENGINE = "PORTFOLIO_ENGINE"
+    LIFECYCLE_ENGINE = "LIFECYCLE_ENGINE"
+    NOTIFICATION_PLATFORM = "NOTIFICATION_PLATFORM"
+    MONITORING_ENGINE = "MONITORING_ENGINE"
+
+
+class ArchiveEntityType(str, Enum):
+    """Archived entity category classification."""
+    SIGNAL = "SIGNAL"
+    EXECUTION = "EXECUTION"
+    PORTFOLIO_STATE = "PORTFOLIO_STATE"
+    POSITION = "POSITION"
+    TRADE_LIFECYCLE = "TRADE_LIFECYCLE"
+    MARKET_TICK = "MARKET_TICK"
+    BROKER_ORDER = "BROKER_ORDER"
+    NOTIFICATION = "NOTIFICATION"
+    HEARTBEAT = "HEARTBEAT"
+    TELEMETRY = "TELEMETRY"
+    HEALTH_ALERT = "HEALTH_ALERT"
+    DIAGNOSTIC_REPORT = "DIAGNOSTIC_REPORT"
+    REPLAY_CHECKPOINT = "REPLAY_CHECKPOINT"
+    SNAPSHOT_MANIFEST = "SNAPSHOT_MANIFEST"
+
+
+class ReplayStatus(str, Enum):
+    """Replay execution status enumeration."""
+    PENDING = "PENDING"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class SnapshotType(str, Enum):
+    """State snapshot manifest category classification."""
+    PORTFOLIO = "PORTFOLIO"
+    MARKET_STATE = "MARKET_STATE"
+    BROKER_ACCOUNT = "BROKER_ACCOUNT"
+    SYSTEM_HEALTH = "SYSTEM_HEALTH"
+    EXECUTION_STATE = "EXECUTION_STATE"
+    ARCHIVE_STATISTICS = "ARCHIVE_STATISTICS"
+
+
+class ArchiveRetentionPolicy(str, Enum):
+    """Archive retention policy classification (APPEND_ONLY only)."""
+    APPEND_ONLY = "APPEND_ONLY"
+
+
+class ArchiveAuditEventType(str, Enum):
+    """Archive vault audit event category enumeration."""
+    RECORD_INGESTED = "RECORD_INGESTED"
+    BATCH_COMMITTED = "BATCH_COMMITTED"
+    REPLAY_STARTED = "REPLAY_STARTED"
+    REPLAY_COMPLETED = "REPLAY_COMPLETED"
+    SNAPSHOT_CREATED = "SNAPSHOT_CREATED"
+    INTEGRITY_AUDITED = "INTEGRITY_AUDITED"

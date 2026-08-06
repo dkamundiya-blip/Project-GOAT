@@ -1,0 +1,72 @@
+"""
+Project GOAT v0.8 — Notification & Distribution Platform Core Enumerations
+"""
+
+from enum import Enum
+
+
+class NotificationType(str, Enum):
+    """Notification event type classification enumeration."""
+    SIGNAL_GENERATED = "SIGNAL_GENERATED"
+    SIGNAL_QUALIFIED = "SIGNAL_QUALIFIED"
+    EXECUTION_SUBMITTED = "EXECUTION_SUBMITTED"
+    EXECUTION_ACCEPTED = "EXECUTION_ACCEPTED"
+    EXECUTION_FAILED = "EXECUTION_FAILED"
+    TRADE_OPENED = "TRADE_OPENED"
+    TRADE_MODIFIED = "TRADE_MODIFIED"
+    STOP_LOSS_UPDATED = "STOP_LOSS_UPDATED"
+    TAKE_PROFIT_UPDATED = "TAKE_PROFIT_UPDATED"
+    TRAILING_STOP_UPDATED = "TRAILING_STOP_UPDATED"
+    PARTIAL_CLOSE = "PARTIAL_CLOSE"
+    TRADE_CLOSED = "TRADE_CLOSED"
+    PORTFOLIO_UPDATE = "PORTFOLIO_UPDATE"
+    RISK_ALERT = "RISK_ALERT"
+    LIFECYCLE_ALERT = "LIFECYCLE_ALERT"
+    SYSTEM_WARNING = "SYSTEM_WARNING"
+    HEALTH_NOTIFICATION = "HEALTH_NOTIFICATION"
+    REPLAY_NOTIFICATION = "REPLAY_NOTIFICATION"
+    GENERAL_ANNOUNCEMENT = "GENERAL_ANNOUNCEMENT"
+
+
+class NotificationChannelType(str, Enum):
+    """Notification delivery channel classification enumeration."""
+    DASHBOARD = "DASHBOARD"
+    DESKTOP = "DESKTOP"
+    MOBILE = "MOBILE"
+    TELEGRAM = "TELEGRAM"
+    DISCORD = "DISCORD"
+    WEBHOOK = "WEBHOOK"
+    EMAIL = "EMAIL"
+    SMS = "SMS"
+    FILE_EXPORT = "FILE_EXPORT"
+
+
+class NotificationPriority(str, Enum):
+    """Notification priority level enumeration."""
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+    URGENT = "URGENT"
+
+
+class NotificationDeliveryStatus(str, Enum):
+    """Notification delivery state classification."""
+    QUEUED = "QUEUED"
+    PROCESSING = "PROCESSING"
+    DELIVERED = "DELIVERED"
+    FAILED = "FAILED"
+    RETRIED = "RETRIED"
+    SUPPRESSED = "SUPPRESSED"
+    EXPIRED = "EXPIRED"
+
+
+class NotificationAuditEventType(str, Enum):
+    """Notification audit trail event category enumeration."""
+    NOTIFICATION_CREATED = "NOTIFICATION_CREATED"
+    NOTIFICATION_ROUTED = "NOTIFICATION_ROUTED"
+    NOTIFICATION_ENQUEUED = "NOTIFICATION_ENQUEUED"
+    DISPATCH_PLANNED = "DISPATCH_PLANNED"
+    DELIVERY_RECORDED = "DELIVERY_RECORDED"
+    DUPLICATE_SUPPRESSED = "DUPLICATE_SUPPRESSED"
+    DELIVERY_FAILED = "DELIVERY_FAILED"

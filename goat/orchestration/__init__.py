@@ -1,57 +1,46 @@
 """
-Project GOAT v0.5 — Deterministic Experiment Orchestrator Subpackage
+Project GOAT v0.7 — Scientific Research Orchestration Engine Package
 """
 
-from goat.orchestration.campaign import (
-    CampaignDefinition,
-    CampaignLifecycleLogEntry,
-    CampaignManifest,
-    CampaignStatus,
-    ExperimentStatus,
-    InfrastructureFailure,
-    OrchestrationError,
-    ProvenanceMismatchError,
-    QueueSnapshot,
-    ValidationFailure,
-    WorkerFailure,
+from goat.orchestration.artifacts import ArtifactRecord, ArtifactTracker
+from goat.orchestration.audit import PipelineAuditEvent
+from goat.orchestration.context import ResearchExecutionContext
+from goat.orchestration.enums import ArtifactType, PipelineState, PipelineStageType
+from goat.orchestration.model import ResearchPipeline, compute_pipeline_id
+from goat.orchestration.recovery import (
+    PipelineCheckpoint,
+    PipelineRecoveryEngine,
+    compute_checkpoint_id,
 )
-from goat.orchestration.checkpoint import CheckpointManager
-from goat.orchestration.queue import ExperimentQueue, ExperimentTask
-from goat.orchestration.report import CampaignReportGenerator, MarkdownReportGenerator, JsonReportGenerator
-from goat.orchestration.scheduler import (
-    ExperimentScheduler,
-    compute_configuration_hash,
-    compute_dependency_lockfile_hash,
-    compute_experiment_id,
-    generate_campaign_id,
-    sort_nested_dict,
-)
-from goat.orchestration.worker import WorkerPool, derive_canonical_seed_material
+from goat.orchestration.reporting import PipelineReport, generate_pipeline_report
+from goat.orchestration.service import PipelineValidationError, ResearchOrchestrator
+from goat.orchestration.sqlite import SQLiteOrchestrationRepository
+from goat.orchestration.stage import PipelineStage, compute_stage_id
 
 __all__ = [
-    "CampaignDefinition",
-    "CampaignLifecycleLogEntry",
-    "CampaignManifest",
-    "CampaignReportGenerator",
-    "CampaignStatus",
-    "CheckpointManager",
-    "ExperimentQueue",
-    "ExperimentScheduler",
-    "ExperimentStatus",
-    "ExperimentTask",
-    "InfrastructureFailure",
-    "JsonReportGenerator",
-    "MarkdownReportGenerator",
-    "OrchestrationError",
-    "ProvenanceMismatchError",
-    "QueueSnapshot",
-    "ValidationFailure",
-    "WorkerFailure",
-    "WorkerPool",
-    "compute_configuration_hash",
-    "compute_dependency_lockfile_hash",
-    "compute_experiment_id",
-    "derive_canonical_seed_material",
-    "generate_campaign_id",
-    "sort_nested_dict",
+    # Enums
+    "PipelineState",
+    "PipelineStageType",
+    "ArtifactType",
+    # Domain Models & Context
+    "ResearchPipeline",
+    "compute_pipeline_id",
+    "PipelineStage",
+    "compute_stage_id",
+    "ResearchExecutionContext",
+    # Artifact Tracker & Audit
+    "ArtifactRecord",
+    "ArtifactTracker",
+    "PipelineAuditEvent",
+    # Checkpoint & Recovery
+    "PipelineCheckpoint",
+    "compute_checkpoint_id",
+    "PipelineRecoveryEngine",
+    # Persistence & Reporting
+    "SQLiteOrchestrationRepository",
+    "PipelineReport",
+    "generate_pipeline_report",
+    # Orchestrator Service
+    "ResearchOrchestrator",
+    "PipelineValidationError",
 ]

@@ -1,0 +1,55 @@
+"""
+Project GOAT v0.8 — Core Enums for Production Execution Engine
+
+Defines execution lifecycle states, failure categories, and audit event types:
+- ExecutionState
+- ExecutionFailureCategory
+- AuditEventType
+"""
+
+from enum import Enum
+
+
+class ExecutionState(str, Enum):
+    """Execution lifecycle state enum."""
+
+    CREATED = "CREATED"
+    VALIDATED = "VALIDATED"
+    READY = "READY"
+    DISPATCHED = "DISPATCHED"
+    ACKNOWLEDGED = "ACKNOWLEDGED"
+    PARTIALLY_FILLED = "PARTIALLY_FILLED"
+    FILLED = "FILLED"
+    REJECTED = "REJECTED"
+    CANCELLED = "CANCELLED"
+    FAILED = "FAILED"
+
+
+class ExecutionFailureCategory(str, Enum):
+    """Failure category classification enum."""
+
+    VALIDATION_FAILED = "VALIDATION_FAILED"
+    IDEMPOTENCY_VIOLATION = "IDEMPOTENCY_VIOLATION"
+    DUPLICATE_EXECUTION = "DUPLICATE_EXECUTION"
+    BROKER_UNAVAILABLE = "BROKER_UNAVAILABLE"
+    SESSION_EXPIRED = "SESSION_EXPIRED"
+    CAPITAL_EXHAUSTED = "CAPITAL_EXHAUSTED"
+    RISK_VIOLATION = "RISK_VIOLATION"
+    SIGNAL_EXPIRED = "SIGNAL_EXPIRED"
+    MARKET_UNAVAILABLE = "MARKET_UNAVAILABLE"
+    QUALIFICATION_EXPIRED = "QUALIFICATION_EXPIRED"
+    SYSTEM_ERROR = "SYSTEM_ERROR"
+
+
+class AuditEventType(str, Enum):
+    """Audit trail event category enum."""
+
+    INTENT_CREATED = "INTENT_CREATED"
+    VALIDATION_PASSED = "VALIDATION_PASSED"
+    VALIDATION_FAILED = "VALIDATION_FAILED"
+    IDEMPOTENCY_CHECKED = "IDEMPOTENCY_CHECKED"
+    ORDER_DISPATCHED = "ORDER_DISPATCHED"
+    ORDER_ACKNOWLEDGED = "ORDER_ACKNOWLEDGED"
+    ORDER_FILLED = "ORDER_FILLED"
+    ORDER_REJECTED = "ORDER_REJECTED"
+    EXECUTION_FAILED = "EXECUTION_FAILED"

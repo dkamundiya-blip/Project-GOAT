@@ -44,10 +44,8 @@ env/
 htmlcov/
 .tox/
 
-# --- OS ---
-.DS_Store
-Thumbs.db
-desktop.ini
+# --- Node.js & Frontend ---
+node_modules/
+**/node_modules/
+**/dist/
 
-# --- Jupyter ---
-.ipynb_checkpoints/

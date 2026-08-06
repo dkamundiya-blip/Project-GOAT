@@ -1,0 +1,8 @@
+[build]
+  command = "cd apps/dashboard && npm run build"
+  publish = "apps/dashboard/dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

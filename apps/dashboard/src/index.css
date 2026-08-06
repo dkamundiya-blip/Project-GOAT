@@ -1,0 +1,321 @@
+/**
+ * Project GOAT v1.0 — Institutional Dashboard Global Styles
+ * Step 1.4 Presentation Layer
+ *
+ * This file is the single CSS entry point. It activates Tailwind's
+ * utility engine and defines the design-system foundation:
+ *   • Dark institutional palette
+ *   • Glass-morphism surfaces
+ *   • Scrollbar overrides
+ *   • Keyframe micro-animations
+ *   • Global typographic resets
+ */
+
+/* ──────── Tailwind Engine Layers ──────── */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ──────── Base Layer: Global Resets ──────── */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: #06090e;
+    color: #e2e8f0;
+    line-height: 1.6;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── Institutional Scrollbar ── */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.35);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.55);
+  }
+
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
+  }
+
+  /* ── Selection highlight ── */
+  ::selection {
+    background: rgba(99, 102, 241, 0.35);
+    color: #f1f5f9;
+  }
+}
+
+/* ──────── Component Layer: Reusable Patterns ──────── */
+@layer components {
+  /* Glass-morphism surface card */
+  .glass-surface {
+    @apply bg-slate-900/60 backdrop-blur-xl border border-slate-700/40 rounded-xl;
+    box-shadow:
+      0 0 0 1px rgba(148, 163, 184, 0.06),
+      0 4px 24px -4px rgba(0, 0, 0, 0.45);
+  }
+
+  /* Elevated glass card (modals, popovers) */
+  .glass-elevated {
+    @apply bg-slate-800/70 backdrop-blur-2xl border border-slate-600/30 rounded-xl;
+    box-shadow:
+      0 0 0 1px rgba(148, 163, 184, 0.08),
+      0 8px 40px -8px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Primary glow button */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2
+           bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700
+           text-white text-sm font-medium rounded-lg
+           transition-all duration-200 ease-out
+           shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30;
+  }
+
+  /* Ghost button */
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-3 py-1.5
+           text-slate-400 hover:text-slate-200 hover:bg-slate-800/60
+           text-sm font-medium rounded-lg
+           transition-all duration-150 ease-out;
+  }
+
+  /* Status indicator dot */
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+
+  .status-dot-live {
+    @apply status-dot bg-emerald-400;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  /* Data grid header cell */
+  .grid-header-cell {
+    @apply px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400
+           bg-slate-900/80 border-b border-slate-700/50;
+  }
+
+  /* Data grid body cell */
+  .grid-body-cell {
+    @apply px-4 py-3 text-sm text-slate-300 border-b border-slate-800/50
+           transition-colors duration-100;
+  }
+
+  /* KPI metric card */
+  .kpi-card {
+    @apply glass-surface p-5 flex flex-col gap-1;
+  }
+
+  .kpi-label {
+    @apply text-xs font-medium uppercase tracking-wider text-slate-500;
+  }
+
+  .kpi-value {
+    @apply text-2xl font-semibold tabular-nums tracking-tight text-white;
+  }
+
+  .kpi-delta-positive {
+    @apply text-emerald-400 text-xs font-medium;
+  }
+
+  .kpi-delta-negative {
+    @apply text-rose-400 text-xs font-medium;
+  }
+
+  /* Navigation item */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-sm
+           text-slate-400 hover:text-slate-200 hover:bg-slate-800/60
+           transition-all duration-150 cursor-pointer;
+  }
+
+  .nav-item-active {
+    @apply text-indigo-400 bg-indigo-500/10 border-l-2 border-indigo-500;
+  }
+
+  /* Section header */
+  .section-header {
+    @apply text-xs font-bold uppercase tracking-[0.15em] text-slate-500 mb-3;
+  }
+
+  /* Sparkline container */
+  .sparkline-container {
+    @apply h-10 w-24;
+  }
+
+  /* Badge variants */
+  .badge-info {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+           bg-cyan-500/15 text-cyan-400 ring-1 ring-inset ring-cyan-400/20;
+  }
+
+  .badge-success {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+           bg-emerald-500/15 text-emerald-400 ring-1 ring-inset ring-emerald-400/20;
+  }
+
+  .badge-warning {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+           bg-amber-500/15 text-amber-400 ring-1 ring-inset ring-amber-400/20;
+  }
+
+  .badge-danger {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+           bg-rose-500/15 text-rose-400 ring-1 ring-inset ring-rose-400/20;
+  }
+}
+
+/* ──────── Utility Layer: Custom Helpers ──────── */
+@layer utilities {
+  /* Subtle text gradient */
+  .text-gradient-brand {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-cyan-400 to-emerald-400;
+  }
+
+  /* Glow accent borders */
+  .border-glow-indigo {
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.3), inset 0 0 8px rgba(99, 102, 241, 0.05);
+  }
+
+  .border-glow-cyan {
+    box-shadow: 0 0 8px rgba(6, 182, 212, 0.3), inset 0 0 8px rgba(6, 182, 212, 0.05);
+  }
+
+  .border-glow-emerald {
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.3), inset 0 0 8px rgba(16, 185, 129, 0.05);
+  }
+
+  /* Noise texture overlay (premium feel) */
+  .bg-noise {
+    position: relative;
+  }
+
+  .bg-noise::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Hide scrollbar but keep scroll functionality */
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hidden {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* ──────── Keyframe Animations ──────── */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+  }
+  50% {
+    opacity: 0.6;
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.9);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes data-pulse {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Loading shimmer skeleton */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(30, 41, 59, 0.5) 25%,
+    rgba(51, 65, 85, 0.5) 50%,
+    rgba(30, 41, 59, 0.5) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
+
+/* Fade-in animation utility */
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out forwards;
+}
+
+.animate-data-pulse {
+  animation: data-pulse 1.5s ease-in-out infinite;
+}
