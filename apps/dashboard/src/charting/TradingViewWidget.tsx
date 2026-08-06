@@ -1,6 +1,17 @@
 /**
  * Project GOAT v1.0 — TradingView Interactive Canvas/SVG Chart Widget
  * Step 1.6 Institutional TradingView Charting Engine
+ *
+ * Full TradingView-grade Interactive Renderer:
+ * - 200–300 historical candles display
+ * - Smooth Mouse Wheel Zoom (2px to 35px candle spacing)
+ * - Drag-to-Pan horizontal history scrolling
+ * - Double-click auto-fit reset
+ * - Visible-range auto-adjusting Y-axis price scale
+ * - X-axis Time scale with intraday & daily timestamp formatting
+ * - Synchronized Crosshair with Price (Y-axis) & Time (X-axis) badges
+ * - Last price dashed line & live price tag
+ * - Smooth real-time tick/candle streaming updates
  */
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
@@ -43,12 +54,36 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
   const [bars, setBars] = useState<BarData[]>([]);
   const [crosshairPos, setCrosshairPos] = useState<{ x: number; y: number; price: number; time: number } | null>(null);
 
+  // Interactive Zoom & Pan Refs
+  const zoomSpacingRef = useRef<number>(6.5); // barSpacing in pixels
+  const panOffsetRef = useRef<number>(0);     // 0 = live edge, >0 = panned back into history
+  const isDraggingRef = useRef<boolean>(false);
+  const dragStartXRef = useRef<number>(0);
+  const dragStartPanRef = useRef<number>(0);
+
   const datafeedRef = useRef<TradingViewDataFeed>(new TradingViewDataFeed());
+
+  // Format timestamp for bottom X-axis
+  const formatTimeLabel = (timestampMs: number, tf: string): string => {
+    const d = new Date(timestampMs);
+    if (isNaN(d.getTime())) return '';
+    const hours = d.getUTCHours().toString().padStart(2, '0');
+    const mins = d.getUTCMinutes().toString().padStart(2, '0');
+    const secs = d.getUTCSeconds().toString().padStart(2, '0');
+
+    if (tf === '1D' || tf === '4H') {
+      const month = d.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+      const day = d.getUTCDate().toString().padStart(2, '0');
+      return `${month} ${day}`;
+    }
+    return `${hours}:${mins}:${secs}`;
+  };
 
   // Load bars when symbol or timeframe changes
   useEffect(() => {
     let isSubscribed = true;
-    setBars([]); // Clear stale bars to force clean price scale recalculation on symbol/timeframe switch
+    setBars([]);
+    panOffsetRef.current = 0; // Reset pan on symbol/timeframe switch
 
     const meta = SymbolManager.getSymbolMetadata(symbol);
     const symbolInfo: any = {
@@ -88,7 +123,6 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
       resolution,
       (newBar) => {
         if (!isSubscribed) return;
-        console.log('[TradingViewWidget] Stream bar update for', symbol, newBar);
         setBars((prev) => {
           if (prev.length === 0) return [newBar];
           const last = prev[prev.length - 1];
@@ -140,18 +174,32 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, width, heightVal);
 
-    // Geometry & Layout Constants
-    const rightMargin = 60; // Axis width
+    // Layout Margins
+    const rightMargin = 65;      // Y-axis width
+    const timeAxisHeight = 24;   // X-axis height
     const availableWidth = width - rightMargin;
+    const availableHeight = heightVal - timeAxisHeight;
 
-    // Fixed spacing per candle: 6px to 10px depending on canvas width & candle count
-    // Capped body width (max 8px) to eliminate oversized block candles
-    const barSpacing = Math.max(3, Math.min(10, availableWidth / Math.max(1, Math.min(bars.length, 120))));
-    const candleWidth = Math.max(1, Math.min(8, Math.floor(barSpacing * 0.75)));
+    const chartTop = 24;
+    const chartBottom = showVolume ? availableHeight - 45 : availableHeight - 10;
+    const chartHeight = Math.max(10, chartBottom - chartTop);
 
-    // Visible candle slice
+    // Zoom & Pan Spacing
+    const barSpacing = zoomSpacingRef.current;
+    const candleWidth = Math.max(1, Math.min(24, Math.floor(barSpacing * 0.75)));
     const maxVisibleCount = Math.floor(availableWidth / barSpacing);
-    const visibleBars = bars.slice(-maxVisibleCount);
+
+    // Pan clamping: panOffsetRef cannot exceed total bars or be negative
+    const maxPan = Math.max(0, bars.length - Math.floor(maxVisibleCount / 2));
+    panOffsetRef.current = Math.max(0, Math.min(maxPan, panOffsetRef.current));
+    const panOffset = panOffsetRef.current;
+
+    // Determine slice of visible bars
+    const endIndex = Math.max(1, bars.length - panOffset);
+    const startIndex = Math.max(0, endIndex - maxVisibleCount);
+    const visibleBars = bars.slice(startIndex, endIndex);
+
+    if (visibleBars.length === 0) return;
 
     // Compute Price Bounds strictly from visible candle range
     let minPrice = Infinity;
@@ -170,55 +218,58 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
     const scaledMaxPrice = maxPrice + pricePadding;
     const totalRange = scaledMaxPrice - scaledMinPrice;
 
-    const chartBottom = showVolume ? heightVal - 60 : heightVal - 30;
-    const chartTop = 30;
-    const chartHeight = Math.max(10, chartBottom - chartTop);
-
     const priceToY = (p: number) => {
       if (totalRange <= 0) return chartTop + chartHeight / 2;
       return chartBottom - ((p - scaledMinPrice) / totalRange) * chartHeight;
     };
 
-    console.log('[TradingViewWidget] Canvas rendering debug:', {
-      symbol,
-      timeframe,
-      totalBars: bars.length,
-      visibleBarsCount: visibleBars.length,
-      barSpacing,
-      candleWidth,
-      rawMinPrice: minPrice,
-      rawMaxPrice: maxPrice,
-      scaledMinPrice,
-      scaledMaxPrice,
-      totalRange,
-      chartHeight,
-    });
-
-    // Draw Grid Lines
+    // 1. Draw Grid Lines & Price Axis (Y-axis)
     if (showGridLines) {
       ctx.strokeStyle = gridColor;
       ctx.lineWidth = 1;
 
-      // Horizontal price lines
-      const priceSteps = 5;
+      // Horizontal Price Grid Lines
+      const priceSteps = 6;
       for (let i = 0; i <= priceSteps; i++) {
         const y = chartTop + (chartHeight / priceSteps) * i;
         const priceVal = scaledMaxPrice - (totalRange / priceSteps) * i;
+
         ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(availableWidth, y);
+        ctx.moveTo(0, Math.floor(y) + 0.5);
+        ctx.lineTo(availableWidth, Math.floor(y) + 0.5);
         ctx.stroke();
 
-        // Price Axis Label
+        // Y-Axis Price Label
         ctx.fillStyle = textColor;
         ctx.font = '10px monospace';
-        ctx.fillText(SymbolManager.formatPrice(priceVal, symbol), availableWidth + 5, y + 3);
+        ctx.fillText(SymbolManager.formatPrice(priceVal, symbol), availableWidth + 6, y + 3);
       }
     }
 
-    // Draw Chart Bars from right to left with fixed spacing
+    // 2. Draw X-Axis Time Labels & Vertical Grid Lines
+    const timeLabelStep = Math.max(1, Math.floor(80 / barSpacing));
     visibleBars.forEach((bar, idx) => {
-      // Right-aligned candle position
+      const x = Math.floor(availableWidth - (visibleBars.length - 1 - idx) * barSpacing - barSpacing / 2) + 0.5;
+
+      if (idx % timeLabelStep === 0 && x >= 0 && x <= availableWidth) {
+        if (showGridLines) {
+          ctx.strokeStyle = gridColor;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x, chartTop);
+          ctx.lineTo(x, availableHeight);
+          ctx.stroke();
+        }
+
+        // X-Axis Time Label
+        ctx.fillStyle = textColor;
+        ctx.font = '10px monospace';
+        ctx.fillText(formatTimeLabel(bar.time, timeframe), x - 20, heightVal - 6);
+      }
+    });
+
+    // 3. Draw Chart Bars & Candlesticks
+    visibleBars.forEach((bar, idx) => {
       const x = Math.floor(availableWidth - (visibleBars.length - 1 - idx) * barSpacing - barSpacing / 2) + 0.5;
       const isUp = bar.close >= bar.open;
       const color = isUp ? greenUp : redDown;
@@ -278,49 +329,84 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
           // Doji or equal open/close -> Render 1px thin horizontal line
           ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, 1);
         } else {
-          // Normal candle body -> Render body rectangle capped at candleWidth
+          // Normal candle body -> Render body rectangle
           ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, rawBodyHeight);
         }
       }
 
       // Draw Volume Bars
       if (showVolume && maxVol > 0) {
-        const volY = heightVal - (bar.volume / maxVol) * 45;
+        const volY = availableHeight - (bar.volume / maxVol) * 40;
         ctx.fillStyle = isUp ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.25)';
-        ctx.fillRect(x - candleWidth / 2, volY, candleWidth, heightVal - volY);
+        ctx.fillRect(x - candleWidth / 2, volY, candleWidth, availableHeight - volY);
       }
     });
 
-    // Draw Crosshair
+    // 4. Draw Latest Price Line & Tag
+    const latestBar = bars[bars.length - 1];
+    if (latestBar) {
+      const lastY = Math.floor(priceToY(latestBar.close)) + 0.5;
+      const isUp = latestBar.close >= latestBar.open;
+      const tagColor = isUp ? greenUp : redDown;
+
+      // Dashed horizontal price line
+      ctx.strokeStyle = tagColor;
+      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, lastY);
+      ctx.lineTo(availableWidth, lastY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Y-Axis Live Price Tag Badge
+      ctx.fillStyle = tagColor;
+      ctx.fillRect(availableWidth, lastY - 9, 63, 18);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText(SymbolManager.formatPrice(latestBar.close, symbol), availableWidth + 5, lastY + 3);
+    }
+
+    // 5. Draw Interactive Crosshair & Badges
     if (crosshairPos && crosshairMode !== 'hidden') {
       ctx.strokeStyle = '#38bdf8';
       ctx.setLineDash([4, 4]);
       ctx.lineWidth = 1;
 
-      // Horizontal
+      // Horizontal Line
       ctx.beginPath();
       ctx.moveTo(0, crosshairPos.y);
       ctx.lineTo(availableWidth, crosshairPos.y);
       ctx.stroke();
 
-      // Vertical
+      // Vertical Line
       ctx.beginPath();
       ctx.moveTo(crosshairPos.x, chartTop);
-      ctx.lineTo(crosshairPos.x, chartBottom);
+      ctx.lineTo(crosshairPos.x, availableHeight);
       ctx.stroke();
 
       ctx.setLineDash([]);
 
-      // Crosshair Price Badge
+      // Y-Axis Crosshair Price Badge
       ctx.fillStyle = '#0284c7';
-      ctx.fillRect(availableWidth, crosshairPos.y - 10, 58, 20);
+      ctx.fillRect(availableWidth, crosshairPos.y - 10, 63, 20);
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 10px monospace';
       ctx.fillText(SymbolManager.formatPrice(crosshairPos.price, symbol), availableWidth + 5, crosshairPos.y + 3);
-    }
-  }, [bars, chartStyle, crosshairPos, crosshairMode, theme, symbol, showVolume, showGridLines]);
 
-  // Canvas Resize & Animation Loop
+      // X-Axis Crosshair Time Badge
+      if (crosshairPos.time) {
+        const timeText = formatTimeLabel(crosshairPos.time, timeframe);
+        ctx.fillStyle = '#0284c7';
+        ctx.fillRect(crosshairPos.x - 30, availableHeight, 60, 20);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText(timeText, crosshairPos.x - 22, availableHeight + 14);
+      }
+    }
+  }, [bars, chartStyle, crosshairPos, crosshairMode, theme, symbol, timeframe, showVolume, showGridLines]);
+
+  // Canvas Resize Listener
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -342,7 +428,24 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
     drawChart();
   }, [drawChart]);
 
-  // Handle Mouse Move for Crosshair
+  // Handle Mouse Wheel for Zoom In / Zoom Out
+  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
+    const newSpacing = Math.max(1.8, Math.min(35, zoomSpacingRef.current * zoomFactor));
+    zoomSpacingRef.current = newSpacing;
+    drawChart();
+  };
+
+  // Handle Mouse Drag for Horizontal Pan
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.button === 0) { // Left click
+      isDraggingRef.current = true;
+      dragStartXRef.current = e.clientX;
+      dragStartPanRef.current = panOffsetRef.current;
+    }
+  };
+
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas || bars.length === 0) return;
@@ -350,12 +453,28 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    const rightMargin = 60;
+    const rightMargin = 65;
+    const timeAxisHeight = 24;
     const availableWidth = canvas.width - rightMargin;
+    const availableHeight = canvas.height - timeAxisHeight;
 
-    const barSpacing = Math.max(3, Math.min(10, availableWidth / Math.max(1, Math.min(bars.length, 120))));
+    // If dragging, update pan offset
+    if (isDraggingRef.current) {
+      const deltaX = e.clientX - dragStartXRef.current;
+      const deltaBars = Math.round(deltaX / zoomSpacingRef.current);
+      panOffsetRef.current = Math.max(0, dragStartPanRef.current + deltaBars);
+      drawChart();
+      return;
+    }
+
+    // Crosshair calculation
+    const barSpacing = zoomSpacingRef.current;
     const maxVisibleCount = Math.floor(availableWidth / barSpacing);
-    const visibleBars = bars.slice(-maxVisibleCount);
+
+    const panOffset = panOffsetRef.current;
+    const endIndex = Math.max(1, bars.length - panOffset);
+    const startIndex = Math.max(0, endIndex - maxVisibleCount);
+    const visibleBars = bars.slice(startIndex, endIndex);
 
     if (visibleBars.length === 0) return;
 
@@ -372,13 +491,13 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
     const scaledMaxPrice = maxPrice + pricePadding;
     const totalRange = scaledMaxPrice - scaledMinPrice;
 
-    const chartBottom = showVolume ? canvas.height - 60 : canvas.height - 30;
-    const chartTop = 30;
+    const chartBottom = showVolume ? availableHeight - 45 : availableHeight - 10;
+    const chartTop = 24;
     const chartHeight = Math.max(10, chartBottom - chartTop);
 
     const price = scaledMaxPrice - ((y - chartTop) / chartHeight) * totalRange;
 
-    // Locate bar under mouse x
+    // Locate bar under cursor x
     const barOffsetFromRight = Math.floor((availableWidth - x) / barSpacing);
     const barIdx = visibleBars.length - 1 - barOffsetFromRight;
     const clampedIdx = Math.min(visibleBars.length - 1, Math.max(0, barIdx));
@@ -393,10 +512,22 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
     }
   };
 
+  const handleMouseUp = () => {
+    isDraggingRef.current = false;
+  };
+
   const handleMouseLeave = () => {
+    isDraggingRef.current = false;
     setCrosshairPos(null);
     CrosshairManager.setPosition(null);
     if (onCrosshairMove) onCrosshairMove(null, null);
+  };
+
+  // Double click resets zoom & pan (auto-fit)
+  const handleDoubleClick = () => {
+    zoomSpacingRef.current = 6.5;
+    panOffsetRef.current = 0;
+    drawChart();
   };
 
   const latestBar = bars.length > 0 ? bars[bars.length - 1] : null;
@@ -417,11 +548,20 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
         )}
       </div>
 
+      {/* Interactive Controls Guide */}
+      <div className="absolute bottom-7 left-3 z-10 text-[10px] font-mono text-slate-500 bg-slate-950/60 px-2 py-1 rounded border border-slate-900 pointer-events-none">
+        Wheel: Zoom | Drag: Pan | Double-Click: Reset
+      </div>
+
       {/* Main Canvas */}
       <canvas
         ref={canvasRef}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
+        onDoubleClick={handleDoubleClick}
         className="w-full h-full block cursor-crosshair"
       />
     </div>
