@@ -19,6 +19,18 @@ def client():
         yield test_client
 
 
+def test_root_endpoint(client: TestClient):
+    """Test / root endpoint JSON payload."""
+    res = client.get("/")
+    assert res.status_code == 200
+    data = res.json()
+    assert data.get("name") == "Project GOAT — Institutional Trading Platform API"
+    assert data.get("status") == "RUNNING"
+    assert data.get("version") == "1.1.0"
+    assert data.get("docs") == "/docs"
+    assert data.get("health") == "/health"
+
+
 def test_health_endpoint(client: TestClient):
     """Test /api/v1/health system status."""
     res = client.get("/api/v1/health")

@@ -127,6 +127,18 @@ def _to_json_response(payload: Any) -> JSONResponse:
 # SYSTEM & HEALTH ENDPOINTS
 # =====================================================================
 
+@app.get("/")
+def get_root():
+    return {
+        "name": "Project GOAT — Institutional Trading Platform API",
+        "status": "RUNNING",
+        "version": "1.1.0",
+        "docs": "/docs",
+        "health": "/health",
+        "api_health": "/api/v1/health",
+    }
+
+
 @app.get("/api/v1/health")
 @app.get("/health")
 def get_health():
