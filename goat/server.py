@@ -12,6 +12,7 @@ Central ASGI application orchestrating:
 from __future__ import annotations
 
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -32,6 +33,9 @@ _log = get_logger("goat.server")
 engine: LiveMarketDataIngestionEngine | None = None
 market_handler: MarketDataRESTHandler | None = None
 dashboard_handler: DashboardRESTHandler | None = None
+
+# Persistent SQLite path configurable via ENV var, defaulting to local directory
+DB_PATH = os.getenv("DATABASE_URL", "data/live_market_data.db")
 connected_websockets: set[WebSocket] = set()
 
 
@@ -63,7 +67,7 @@ async def lifespan(app: FastAPI):
     _log.info("starting_goat_production_server")
 
     # 1. Initialize Ingestion Engine
-    engine = LiveMarketDataIngestionEngine(db_path=":memory:")
+    engine = LiveMarketDataIngestionEngine(db_path=DB_PATH)
     await engine.start()
 
     # 2. Register tick callback pipeline wrapper (Engine pipeline + Browser WebSocket broadcast)
@@ -81,7 +85,7 @@ async def lifespan(app: FastAPI):
     # 4. Initialize REST Handlers
     market_handler = MarketDataRESTHandler(engine=engine)
 
-    repo = DashboardReadOnlyRepositoryAdapter(":memory:")
+    repo = DashboardReadOnlyRepositoryAdapter(DB_PATH)
     collector = SystemTelemetryCollector()
     dashboard_handler = DashboardRESTHandler(repo=repo, collector=collector)
 
