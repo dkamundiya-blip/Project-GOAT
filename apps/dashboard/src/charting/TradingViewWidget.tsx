@@ -73,6 +73,7 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
       { from: 0, to: Math.floor(Date.now() / 1000), firstDataRequest: true },
       (fetchedBars) => {
         if (isSubscribed) {
+          console.log('[TradingViewWidget] Loaded initial bars count for', symbol, fetchedBars.length);
           setBars(fetchedBars);
         }
       },
@@ -85,6 +86,7 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
       resolution,
       (newBar) => {
         if (!isSubscribed) return;
+        console.log('[TradingViewWidget] Stream bar update for', symbol, newBar);
         setBars((prev) => {
           if (prev.length === 0) return [newBar];
           const last = prev[prev.length - 1];
