@@ -194,6 +194,19 @@ export class TradingViewDataFeed {
         volume: Number(c.volume || 1),
       }));
 
+      // Debug comparison of raw API payload vs mapped bar
+      console.log('[TradingViewDataFeed] DEBUG: Raw API Candle vs Chart Mapped Bar comparison:', {
+        rawSample: {
+          open_timestamp: rawCandles[0].open_timestamp,
+          open: rawCandles[0].open,
+          high: rawCandles[0].high,
+          low: rawCandles[0].low,
+          close: rawCandles[0].close,
+          volume: rawCandles[0].volume,
+        },
+        mappedSample: bars[0],
+      });
+
       // Filter by requested time bounds if specified
       const filtered = periodParams.from > 0 && periodParams.to > 0
         ? bars.filter((b) => b.time >= periodParams.from * 1000 && b.time <= periodParams.to * 1000)

@@ -48,6 +48,8 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
   // Load bars when symbol or timeframe changes
   useEffect(() => {
     let isSubscribed = true;
+    setBars([]); // Clear stale bars to force clean price scale recalculation on symbol/timeframe switch
+
     const meta = SymbolManager.getSymbolMetadata(symbol);
     const symbolInfo: any = {
       name: meta.symbol,
@@ -149,17 +151,33 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
       if (b.volume > maxVol) maxVol = b.volume;
     }
 
-    const pricePadding = (maxPrice - minPrice) * 0.05 || 1.0;
-    minPrice -= pricePadding;
-    maxPrice += pricePadding;
+    const priceRange = maxPrice - minPrice;
+    const pricePadding = priceRange === 0 ? (maxPrice === 0 ? 1.0 : Math.abs(maxPrice) * 0.05 || 1.0) : priceRange * 0.05;
+    const scaledMinPrice = minPrice - pricePadding;
+    const scaledMaxPrice = maxPrice + pricePadding;
+    const totalRange = scaledMaxPrice - scaledMinPrice;
 
     const chartBottom = showVolume ? heightVal - 60 : heightVal - 30;
     const chartTop = 30;
-    const chartHeight = chartBottom - chartTop;
+    const chartHeight = Math.max(10, chartBottom - chartTop);
 
     const priceToY = (p: number) => {
-      return chartBottom - ((p - minPrice) / (maxPrice - minPrice)) * chartHeight;
+      if (totalRange <= 0) return chartTop + chartHeight / 2;
+      return chartBottom - ((p - scaledMinPrice) / totalRange) * chartHeight;
     };
+
+    console.log('[TradingViewWidget] Canvas rendering debug:', {
+      symbol,
+      timeframe,
+      barsCount: bars.length,
+      sampleBar: bars[0],
+      rawMinPrice: minPrice,
+      rawMaxPrice: maxPrice,
+      scaledMinPrice,
+      scaledMaxPrice,
+      totalRange,
+      chartHeight,
+    });
 
     // Draw Grid Lines
     if (showGridLines) {
@@ -170,7 +188,7 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
       const priceSteps = 5;
       for (let i = 0; i <= priceSteps; i++) {
         const y = chartTop + (chartHeight / priceSteps) * i;
-        const priceVal = maxPrice - ((maxPrice - minPrice) / priceSteps) * i;
+        const priceVal = scaledMaxPrice - (totalRange / priceSteps) * i;
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(width - 60, y);
@@ -189,7 +207,7 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
 
     // Draw Chart Bars by Style
     bars.forEach((bar, idx) => {
-      const x = idx * barWidth + barWidth / 2;
+      const x = Math.floor(idx * barWidth + barWidth / 2) + 0.5;
       const isUp = bar.close >= bar.open;
       const color = isUp ? greenUp : redDown;
 
@@ -228,22 +246,29 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
         // Candlestick / Heikin Ashi / Renko
         const yOpen = priceToY(bar.open);
         const yClose = priceToY(bar.close);
-        const yHigh = priceToY(bar.high);
-        const yLow = priceToY(bar.low);
+        const yHigh = priceToY(bar.high); // Smallest Y (highest price)
+        const yLow = priceToY(bar.low);   // Largest Y (lowest price)
 
-        // Draw Wick
+        // Draw Wick (high to low)
         ctx.strokeStyle = color;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(x, yHigh);
-        ctx.lineTo(x, yLow);
+        ctx.moveTo(x, Math.min(yHigh, yLow));
+        ctx.lineTo(x, Math.max(yHigh, yLow));
         ctx.stroke();
 
-        // Draw Body
+        // Draw Body (open to close)
         ctx.fillStyle = color;
         const bodyTop = Math.min(yOpen, yClose);
-        const bodyHeight = Math.max(2, Math.abs(yClose - yOpen));
-        ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+        const rawBodyHeight = Math.abs(yClose - yOpen);
+
+        if (rawBodyHeight < 1) {
+          // Doji or equal open/close -> Render 1px thin horizontal line
+          ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, 1);
+        } else {
+          // Normal candle body -> Render body rectangle
+          ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, rawBodyHeight);
+        }
       }
 
       // Draw Volume Bars
@@ -320,11 +345,17 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
       if (b.high > maxPrice) maxPrice = b.high;
     });
 
+    const priceRange = maxPrice - minPrice;
+    const pricePadding = priceRange === 0 ? (maxPrice === 0 ? 1.0 : Math.abs(maxPrice) * 0.05 || 1.0) : priceRange * 0.05;
+    const scaledMinPrice = minPrice - pricePadding;
+    const scaledMaxPrice = maxPrice + pricePadding;
+    const totalRange = scaledMaxPrice - scaledMinPrice;
+
     const chartBottom = showVolume ? canvas.height - 60 : canvas.height - 30;
     const chartTop = 30;
-    const chartHeight = chartBottom - chartTop;
+    const chartHeight = Math.max(10, chartBottom - chartTop);
 
-    const price = maxPrice - ((y - chartTop) / chartHeight) * (maxPrice - minPrice);
+    const price = scaledMaxPrice - ((y - chartTop) / chartHeight) * totalRange;
     const barIdx = Math.min(bars.length - 1, Math.max(0, Math.floor((x / (canvas.width - 60)) * bars.length)));
     const time = bars[barIdx]?.time || Date.now();
 
