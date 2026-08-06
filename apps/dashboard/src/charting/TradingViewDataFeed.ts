@@ -82,6 +82,11 @@ function normalizeSymbol(sym: string): string {
   return DERIV_TO_GOAT_SYMBOL_MAP[upper] || DERIV_TO_GOAT_SYMBOL_MAP[sym] || upper;
 }
 
+function getIntervalSeconds(goatTf: string): number {
+  const cfg = TimeframeManager.getTimeframeConfig(goatTf);
+  return cfg ? cfg.seconds : 60;
+}
+
 export class TradingViewDataFeed {
   private subscribers: Map<string, { symbol: string; resolution: string; callback: RealtimeCallback }> = new Map();
   private timerId: any = null;
@@ -366,32 +371,27 @@ export class TradingViewDataFeed {
           const rawTick = payload.tick || payload;
           const rawSymbol = rawTick.symbol;
           const price = Number(rawTick.price || rawTick.quote);
+          const epochSec = rawTick.epoch ? Number(rawTick.epoch) : Math.floor(Date.now() / 1000);
 
           if (!rawSymbol || isNaN(price)) return;
 
           const normalizedSym = normalizeSymbol(rawSymbol);
 
-          // Dispatch tick to matching subscribers
-          for (const [subKey, sub] of this.subscribers.entries()) {
+          // Dispatch tick to subscribers following OHLC timeframe interval flooring rules
+          for (const [_, sub] of this.subscribers.entries()) {
             const subSymNormalized = normalizeSymbol(sub.symbol);
             if (subSymNormalized === normalizedSym) {
-              const nowMs = Date.now();
-              const bar: BarData = {
-                time: nowMs,
-                open: price,
-                high: price,
-                low: price,
-                close: price,
-                volume: 1,
-              };
-              console.log('[TradingViewDataFeed] Realtime tick dispatched:', {
-                subKey,
+              const goatTf = TimeframeManager.resolutionToGoatTimeframe(sub.resolution);
+              const intervalSec = getIntervalSeconds(goatTf);
+              const barTimeMs = Math.floor(epochSec / intervalSec) * intervalSec * 1000;
+
+              const tickUpdate: any = {
                 symbol: sub.symbol,
-                rawSymbol,
-                price,
-                bar,
-              });
-              sub.callback(bar);
+                time: barTimeMs,
+                price: price,
+              };
+
+              sub.callback(tickUpdate as any);
             }
           }
         } catch (err) {

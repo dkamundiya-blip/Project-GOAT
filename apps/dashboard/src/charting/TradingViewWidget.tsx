@@ -4,14 +4,14 @@
  *
  * Full TradingView-grade Interactive Renderer:
  * - 200–300 historical candles display
- * - Smooth Mouse Wheel Zoom (2px to 35px candle spacing)
+ * - Smooth Mouse Wheel Zoom (1.8px to 35px candle spacing)
  * - Drag-to-Pan horizontal history scrolling
  * - Double-click auto-fit reset
  * - Visible-range auto-adjusting Y-axis price scale
  * - X-axis Time scale with intraday & daily timestamp formatting
  * - Synchronized Crosshair with Price (Y-axis) & Time (X-axis) badges
  * - Last price dashed line & live price tag
- * - Smooth real-time tick/candle streaming updates
+ * - Strict OHLC live tick streaming aggregation & timeframe boundary handling
  */
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
@@ -117,21 +117,71 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
       () => {}
     );
 
-    // Subscribe live streaming updates
+    // Subscribe live streaming updates with strict OHLC candle aggregation
     datafeedRef.current.subscribeBars(
       symbolInfo,
       resolution,
-      (newBar) => {
+      (update: any) => {
         if (!isSubscribed) return;
         setBars((prev) => {
-          if (prev.length === 0) return [newBar];
-          const last = prev[prev.length - 1];
-          if (last.time === newBar.time) {
-            const updated = [...prev];
-            updated[updated.length - 1] = newBar;
-            return updated;
+          // 1. If update is already a full BarData object (from REST polling fallback):
+          if (typeof update.open === 'number' && typeof update.close === 'number') {
+            const fullBar = update as BarData;
+            if (prev.length === 0) return [fullBar];
+            const last = prev[prev.length - 1];
+            if (last.time === fullBar.time) {
+              const updated = [...prev];
+              updated[updated.length - 1] = fullBar;
+              return updated;
+            } else if (fullBar.time > last.time) {
+              return [...prev, fullBar];
+            }
+            return prev;
           }
-          return [...prev, newBar];
+
+          // 2. If update is a live tick frame { symbol, time, price }:
+          const tickPrice = Number(update.price);
+          const tickTime = Number(update.time);
+          if (isNaN(tickPrice) || isNaN(tickTime)) return prev;
+
+          if (prev.length === 0) {
+            return [{
+              time: tickTime,
+              open: tickPrice,
+              high: tickPrice,
+              low: tickPrice,
+              close: tickPrice,
+              volume: 1,
+            }];
+          }
+
+          const last = prev[prev.length - 1];
+          if (last.time === tickTime) {
+            // Same timeframe interval -> Update current open candle according to OHLC rules
+            const updatedLast: BarData = {
+              time: last.time,
+              open: last.open,
+              high: Math.max(last.high, tickPrice),
+              low: Math.min(last.low, tickPrice),
+              close: tickPrice,
+              volume: last.volume + 1,
+            };
+            const updated = [...prev];
+            updated[updated.length - 1] = updatedLast;
+            return updated;
+          } else if (tickTime > last.time) {
+            // Timeframe boundary crossed -> Finalize open candle & open new forming candle
+            const newBar: BarData = {
+              time: tickTime,
+              open: tickPrice,
+              high: tickPrice,
+              low: tickPrice,
+              close: tickPrice,
+              volume: 1,
+            };
+            return [...prev, newBar];
+          }
+          return prev;
         });
       },
       `sub_${panelId}_${symbol}_${resolution}`,
