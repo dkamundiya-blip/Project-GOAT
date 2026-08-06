@@ -140,12 +140,25 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, width, heightVal);
 
-    // Compute Price Bounds
+    // Geometry & Layout Constants
+    const rightMargin = 60; // Axis width
+    const availableWidth = width - rightMargin;
+
+    // Fixed spacing per candle: 6px to 10px depending on canvas width & candle count
+    // Capped body width (max 8px) to eliminate oversized block candles
+    const barSpacing = Math.max(3, Math.min(10, availableWidth / Math.max(1, Math.min(bars.length, 120))));
+    const candleWidth = Math.max(1, Math.min(8, Math.floor(barSpacing * 0.75)));
+
+    // Visible candle slice
+    const maxVisibleCount = Math.floor(availableWidth / barSpacing);
+    const visibleBars = bars.slice(-maxVisibleCount);
+
+    // Compute Price Bounds strictly from visible candle range
     let minPrice = Infinity;
     let maxPrice = -Infinity;
     let maxVol = 0;
 
-    for (const b of bars) {
+    for (const b of visibleBars) {
       if (b.low < minPrice) minPrice = b.low;
       if (b.high > maxPrice) maxPrice = b.high;
       if (b.volume > maxVol) maxVol = b.volume;
@@ -169,8 +182,10 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
     console.log('[TradingViewWidget] Canvas rendering debug:', {
       symbol,
       timeframe,
-      barsCount: bars.length,
-      sampleBar: bars[0],
+      totalBars: bars.length,
+      visibleBarsCount: visibleBars.length,
+      barSpacing,
+      candleWidth,
       rawMinPrice: minPrice,
       rawMaxPrice: maxPrice,
       scaledMinPrice,
@@ -191,23 +206,20 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
         const priceVal = scaledMaxPrice - (totalRange / priceSteps) * i;
         ctx.beginPath();
         ctx.moveTo(0, y);
-        ctx.lineTo(width - 60, y);
+        ctx.lineTo(availableWidth, y);
         ctx.stroke();
 
         // Price Axis Label
         ctx.fillStyle = textColor;
         ctx.font = '10px monospace';
-        ctx.fillText(SymbolManager.formatPrice(priceVal, symbol), width - 55, y + 3);
+        ctx.fillText(SymbolManager.formatPrice(priceVal, symbol), availableWidth + 5, y + 3);
       }
     }
 
-    // Bar rendering width
-    const barWidth = Math.max(2, (width - 60) / bars.length);
-    const candleWidth = Math.max(1, barWidth * 0.7);
-
-    // Draw Chart Bars by Style
-    bars.forEach((bar, idx) => {
-      const x = Math.floor(idx * barWidth + barWidth / 2) + 0.5;
+    // Draw Chart Bars from right to left with fixed spacing
+    visibleBars.forEach((bar, idx) => {
+      // Right-aligned candle position
+      const x = Math.floor(availableWidth - (visibleBars.length - 1 - idx) * barSpacing - barSpacing / 2) + 0.5;
       const isUp = bar.close >= bar.open;
       const color = isUp ? greenUp : redDown;
 
@@ -219,7 +231,7 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
         } else {
           ctx.lineTo(x, y);
         }
-        if (idx === bars.length - 1) {
+        if (idx === visibleBars.length - 1) {
           ctx.strokeStyle = '#00f0ff';
           ctx.lineWidth = 2;
           ctx.stroke();
@@ -233,7 +245,7 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
         } else {
           ctx.lineTo(x, y);
         }
-        if (idx === bars.length - 1) {
+        if (idx === visibleBars.length - 1) {
           ctx.lineTo(x, chartBottom);
           ctx.closePath();
           const grad = ctx.createLinearGradient(0, chartTop, 0, chartBottom);
@@ -266,7 +278,7 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
           // Doji or equal open/close -> Render 1px thin horizontal line
           ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, 1);
         } else {
-          // Normal candle body -> Render body rectangle
+          // Normal candle body -> Render body rectangle capped at candleWidth
           ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, rawBodyHeight);
         }
       }
@@ -288,7 +300,7 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
       // Horizontal
       ctx.beginPath();
       ctx.moveTo(0, crosshairPos.y);
-      ctx.lineTo(width - 60, crosshairPos.y);
+      ctx.lineTo(availableWidth, crosshairPos.y);
       ctx.stroke();
 
       // Vertical
@@ -301,10 +313,10 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
 
       // Crosshair Price Badge
       ctx.fillStyle = '#0284c7';
-      ctx.fillRect(width - 60, crosshairPos.y - 10, 58, 20);
+      ctx.fillRect(availableWidth, crosshairPos.y - 10, 58, 20);
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 10px monospace';
-      ctx.fillText(SymbolManager.formatPrice(crosshairPos.price, symbol), width - 55, crosshairPos.y + 3);
+      ctx.fillText(SymbolManager.formatPrice(crosshairPos.price, symbol), availableWidth + 5, crosshairPos.y + 3);
     }
   }, [bars, chartStyle, crosshairPos, crosshairMode, theme, symbol, showVolume, showGridLines]);
 
@@ -338,9 +350,18 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    const rightMargin = 60;
+    const availableWidth = canvas.width - rightMargin;
+
+    const barSpacing = Math.max(3, Math.min(10, availableWidth / Math.max(1, Math.min(bars.length, 120))));
+    const maxVisibleCount = Math.floor(availableWidth / barSpacing);
+    const visibleBars = bars.slice(-maxVisibleCount);
+
+    if (visibleBars.length === 0) return;
+
     let minPrice = Infinity;
     let maxPrice = -Infinity;
-    bars.forEach((b) => {
+    visibleBars.forEach((b) => {
       if (b.low < minPrice) minPrice = b.low;
       if (b.high > maxPrice) maxPrice = b.high;
     });
@@ -356,8 +377,12 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
     const chartHeight = Math.max(10, chartBottom - chartTop);
 
     const price = scaledMaxPrice - ((y - chartTop) / chartHeight) * totalRange;
-    const barIdx = Math.min(bars.length - 1, Math.max(0, Math.floor((x / (canvas.width - 60)) * bars.length)));
-    const time = bars[barIdx]?.time || Date.now();
+
+    // Locate bar under mouse x
+    const barOffsetFromRight = Math.floor((availableWidth - x) / barSpacing);
+    const barIdx = visibleBars.length - 1 - barOffsetFromRight;
+    const clampedIdx = Math.min(visibleBars.length - 1, Math.max(0, barIdx));
+    const time = visibleBars[clampedIdx]?.time || Date.now();
 
     const pos = { x, y, price, time };
     setCrosshairPos(pos);

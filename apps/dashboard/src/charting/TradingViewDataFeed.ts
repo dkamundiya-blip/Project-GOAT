@@ -158,7 +158,7 @@ export class TradingViewDataFeed {
   async getBars(
     symbolInfo: LibrarySymbolInfo,
     resolution: string,
-    periodParams: { from: number; to: number; firstDataRequest: boolean },
+    _periodParams: { from: number; to: number; firstDataRequest: boolean },
     onHistoryCallback: HistoryCallback,
     _onErrorCallback: ErrorCallback
   ): Promise<void> {
@@ -207,18 +207,13 @@ export class TradingViewDataFeed {
         mappedSample: bars[0],
       });
 
-      // Filter by requested time bounds if specified
-      const filtered = periodParams.from > 0 && periodParams.to > 0
-        ? bars.filter((b) => b.time >= periodParams.from * 1000 && b.time <= periodParams.to * 1000)
-        : bars;
-
-      const resultBars = filtered.length > 0 ? filtered : bars;
-      console.log('[TradingViewDataFeed] getBars returning formatted bars count:', resultBars.length, {
-        firstBar: resultBars[0],
-        lastBar: resultBars[resultBars.length - 1],
+      // Always return all historical candles (up to 300) without truncating period bounds
+      console.log('[TradingViewDataFeed] getBars returning full historical bars count:', bars.length, {
+        firstBar: bars[0],
+        lastBar: bars[bars.length - 1],
       });
 
-      onHistoryCallback(resultBars, { noData: false });
+      onHistoryCallback(bars, { noData: false });
     } catch (err) {
       console.error('[TradingViewDataFeed] getBars fetch exception:', err);
       // Zero fake data — Return noData if backend request fails
