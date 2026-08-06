@@ -16,10 +16,11 @@ interface TopNavProps {
 }
 
 export const TopNav: React.FC<TopNavProps> = ({ onToggleNotificationCenter }) => {
-  const { healthStatus } = useHealthStore();
-  const { wsState, restConnected } = useConnectionStore();
-  const { activeSession } = useSessionStore();
-  const { unreadCount } = useNotificationStore();
+  const health = useHealthStore();
+  const { wsStatus, restStatus } = useConnectionStore();
+  const session = useSessionStore();
+  const { notifications } = useNotificationStore();
+  const unreadCount = notifications.filter((n) => !n.read).length;
   const { setSearchOpen } = useSearchStore();
   const { mode, toggleTheme } = useTheme();
 
@@ -60,7 +61,7 @@ export const TopNav: React.FC<TopNavProps> = ({ onToggleNotificationCenter }) =>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
           <span className="text-xs font-mono font-semibold text-emerald-400">
-            {healthStatus?.serverStatus || 'ONLINE'}
+            {health.status || 'RUNNING'}
           </span>
         </div>
       </div>
@@ -70,15 +71,15 @@ export const TopNav: React.FC<TopNavProps> = ({ onToggleNotificationCenter }) =>
         <div className="hidden lg:flex items-center space-x-3 bg-slate-900/80 px-3 py-1 rounded-md border border-slate-800">
           <div className="flex items-center space-x-1.5">
             <span className="text-[10px] text-slate-500">REST:</span>
-            <span className={restConnected ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>
-              {restConnected ? 'CONNECTED' : 'OFFLINE'}
+            <span className={restStatus === 'CONNECTED' ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>
+              {restStatus}
             </span>
           </div>
           <div className="w-px h-3 bg-slate-800" />
           <div className="flex items-center space-x-1.5">
             <span className="text-[10px] text-slate-500">WS:</span>
-            <span className={wsState === 'OPEN' ? 'text-emerald-400 font-semibold' : 'text-amber-400 font-semibold'}>
-              {wsState}
+            <span className={wsStatus === 'OPEN' ? 'text-emerald-400 font-semibold' : 'text-amber-400 font-semibold'}>
+              {wsStatus}
             </span>
           </div>
         </div>
@@ -109,9 +110,9 @@ export const TopNav: React.FC<TopNavProps> = ({ onToggleNotificationCenter }) =>
         {/* User Account Menu */}
         <div className="flex items-center space-x-2 bg-slate-900/80 px-3 py-1 rounded-md border border-slate-800">
           <div className="w-5 h-5 rounded bg-cyan-950 border border-cyan-700/60 text-cyan-400 text-[10px] font-bold flex items-center justify-center">
-            {activeSession?.userRole ? activeSession.userRole[0] : 'Q'}
+            {session.userRole ? session.userRole[0] : 'Q'}
           </div>
-          <span className="text-slate-200 text-xs font-semibold">{activeSession?.userRole || 'QUANT_OPERATOR'}</span>
+          <span className="text-slate-200 text-xs font-semibold">{session.userRole || 'QUANT_OPERATOR'}</span>
         </div>
       </div>
     </header>

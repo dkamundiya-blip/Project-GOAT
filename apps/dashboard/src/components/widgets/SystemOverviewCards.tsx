@@ -5,12 +5,10 @@
 
 import React from 'react';
 import { useDashboardStore } from '../../stores/dashboardStore';
-import { useHealthStore } from '../../stores/healthStore';
 import { KPICard, KPICardProps } from '../ui/KPICard';
 
 export const SystemOverviewCards: React.FC = () => {
   const summary = useDashboardStore((state) => state.summary);
-  const healthStatus = useHealthStore((state) => state.status);
 
   if (!summary) {
     return (

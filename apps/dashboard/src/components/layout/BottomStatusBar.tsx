@@ -9,8 +9,8 @@ import { useSessionStore } from '../../stores/sessionStore';
 import { useMarketData } from '../../hooks/useMarketData';
 
 export const BottomStatusBar: React.FC = () => {
-  const { restConnected } = useConnectionStore();
-  const { activeSession } = useSessionStore();
+  const { restStatus } = useConnectionStore();
+  const session = useSessionStore();
   const { quotes, telemetry, connectionState } = useMarketData(2000);
   const [timeStr, setTimeStr] = useState<string>('');
 
@@ -34,7 +34,9 @@ export const BottomStatusBar: React.FC = () => {
         <span className="text-slate-700">|</span>
         <span className="text-slate-400">BUILD: <span className="text-slate-300">2026.08.06-STEP1.5</span></span>
         <span className="text-slate-700">|</span>
-        <span className="text-slate-400">USER: <span className="text-cyan-300">{activeSession?.userRole || 'QUANT_OPERATOR'}</span></span>
+        <span className="text-slate-400">REST: <span className="text-emerald-400">{restStatus}</span></span>
+        <span className="text-slate-700">|</span>
+        <span className="text-slate-400">USER: <span className="text-cyan-300">{session.userRole || 'QUANT_OPERATOR'}</span></span>
       </div>
 
       {/* Live Deriv Market Stream Telemetry & Real-Time Clock */}

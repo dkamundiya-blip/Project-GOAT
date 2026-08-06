@@ -4,7 +4,7 @@ interface InspectorStoreState {
   isOpen: boolean;
   title: string;
   content: string | null;
-  openInspector: (title: string, content?: string) => void;
+  openInspector: (title: string, content?: string | null) => void;
   closeInspector: () => void;
   toggleInspector: () => void;
 }

@@ -12,8 +12,10 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
 
   if (!isOpen) return null;
 
+  const getSev = (n: any) => (n.severity || n.type || 'INFO').toUpperCase();
+
   const filtered = notifications.filter(
-    (n) => filterSeverity === 'ALL' || n.severity === filterSeverity
+    (n) => filterSeverity === 'ALL' || getSev(n) === filterSeverity
   );
 
   return (
@@ -57,28 +59,31 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, 
             NO SYSTEM ALERTS MATCHING CRITERIA
           </div>
         ) : (
-          filtered.map((n) => (
-            <div
-              key={n.id}
-              onClick={() => markAsRead(n.id)}
-              className={`p-3 rounded-lg border text-xs transition-all cursor-pointer ${
-                n.severity === 'CRITICAL'
-                  ? 'bg-rose-950/20 border-rose-800/50 text-rose-200 hover:border-rose-600'
-                  : n.severity === 'WARN'
-                  ? 'bg-amber-950/20 border-amber-800/50 text-amber-200 hover:border-amber-600'
-                  : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
-              } ${!n.read ? 'ring-1 ring-cyan-500/50' : 'opacity-80'}`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800/80 uppercase">
-                  {n.severity}
-                </span>
-                <span className="font-mono text-[10px] text-slate-500">{n.timestamp}</span>
+          filtered.map((n) => {
+            const sev = getSev(n);
+            return (
+              <div
+                key={n.id}
+                onClick={() => markAsRead(n.id)}
+                className={`p-3 rounded-lg border text-xs transition-all cursor-pointer ${
+                  sev === 'CRITICAL' || sev === 'ERROR'
+                    ? 'bg-rose-950/20 border-rose-800/50 text-rose-200 hover:border-rose-600'
+                    : sev === 'WARN' || sev === 'WARNING'
+                    ? 'bg-amber-950/20 border-amber-800/50 text-amber-200 hover:border-amber-600'
+                    : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                } ${!n.read ? 'ring-1 ring-cyan-500/50' : 'opacity-80'}`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800/80 uppercase">
+                    {sev}
+                  </span>
+                  <span className="font-mono text-[10px] text-slate-500">{n.timestamp}</span>
+                </div>
+                <p className="font-sans font-medium mb-1">{n.title || n.message}</p>
+                {n.detail && <p className="font-mono text-[11px] text-slate-400">{n.detail}</p>}
               </div>
-              <p className="font-sans font-medium mb-1">{n.title || n.message}</p>
-              {n.detail && <p className="font-mono text-[11px] text-slate-400">{n.detail}</p>}
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

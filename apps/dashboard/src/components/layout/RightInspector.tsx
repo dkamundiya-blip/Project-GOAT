@@ -86,13 +86,13 @@ export const RightInspector: React.FC = () => {
             {selectedEntity ? (
               <div className="space-y-3 bg-slate-900/80 border border-slate-800 p-3 rounded-md">
                 <div className="text-cyan-400 font-bold text-sm">{selectedEntity.canonicalId}</div>
-                <div className="text-slate-300 font-medium font-sans text-xs">{selectedEntity.title}</div>
+                <div className="text-slate-300 font-medium font-sans text-xs">{selectedEntity.name}</div>
                 <div className="text-[10px] text-slate-500">STAGE: <span className="text-slate-200">{selectedEntity.stage}</span></div>
                 <div className="text-[10px] text-slate-500">STATUS: <span className="text-emerald-400">{selectedEntity.status}</span></div>
                 <div className="border-t border-slate-800 pt-2 text-[10px] text-slate-400">
-                  <div className="font-bold text-slate-300 mb-1">METADATA</div>
+                  <div className="font-bold text-slate-300 mb-1 font-mono">PROPERTIES</div>
                   <pre className="text-[9px] bg-slate-950 p-2 rounded border border-slate-800 overflow-x-auto text-cyan-300">
-                    {JSON.stringify(selectedEntity.metadata || {}, null, 2)}
+                    {JSON.stringify(selectedEntity.properties || {}, null, 2)}
                   </pre>
                 </div>
               </div>

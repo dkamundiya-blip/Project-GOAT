@@ -8,7 +8,8 @@ import { useTelemetryStore } from '../../stores/telemetryStore';
 import { KPICard } from '../ui/KPICard';
 
 export const TelemetryDashboardWidget: React.FC = () => {
-  const { currentFrame } = useTelemetryStore();
+  const { frames } = useTelemetryStore();
+  const currentFrame = frames[0] || null;
   const [refreshInterval, setRefreshInterval] = useState<number>(2000);
   const [lastUpdated, setLastUpdated] = useState<string>('');
 

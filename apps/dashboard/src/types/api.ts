@@ -8,6 +8,8 @@ export interface TelemetryFramePayload {
   sequence: number;
   timestamp: string;
   payload: Record<string, unknown>;
+  cpu_percent?: number;
+  memory_mb?: number;
 }
 
 export interface APIResponsePayload<T = unknown> {

@@ -14,6 +14,10 @@ export class WSClient {
     this.url = url;
   }
 
+  getUrl(): string {
+    return this.url;
+  }
+
   connect(): void {
     this.isConnected = true;
   }

@@ -2,9 +2,7 @@
  * Project GOAT v1.0 — Market Data Service Layer
  */
 
-import { LiveQuoteDTO, IngestionTelemetryDTO, LiveTickDTO } from '../../types/marketData';
-
-const BASE_URL = '';
+import { LiveQuoteDTO, IngestionTelemetryDTO } from '../../types/marketData';
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, options);

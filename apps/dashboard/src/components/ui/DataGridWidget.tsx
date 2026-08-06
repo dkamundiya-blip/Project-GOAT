@@ -41,7 +41,7 @@ export function DataGridWidget<T extends Record<string, any>>({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; row: T } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const { openInspector } = usePipelineStore();
+  const { inspectEntityById } = usePipelineStore();
 
   // Filter Data
   const filteredData = useMemo(() => {
@@ -241,7 +241,7 @@ export function DataGridWidget<T extends Record<string, any>>({
                     ))}
                     <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <button
-                        onClick={() => openInspector(rowId)}
+                        onClick={() => inspectEntityById(rowId)}
                         className="px-2 py-1 rounded bg-slate-800 hover:bg-cyan-900 text-slate-300 hover:text-cyan-300 border border-slate-700 transition-colors"
                       >
                         Inspect
@@ -304,7 +304,7 @@ export function DataGridWidget<T extends Record<string, any>>({
             CONTEXT ACTIONS
           </div>
           <button
-            onClick={() => openInspector(String(contextMenu.row[canonicalIdKey] || ''))}
+            onClick={() => inspectEntityById(String(contextMenu.row[canonicalIdKey] || ''))}
             className="w-full text-left px-2 py-1 rounded hover:bg-slate-800 text-cyan-300"
           >
             🔍 Inspect Entity

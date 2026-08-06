@@ -1,10 +1,12 @@
-export type NotificationType = 'info' | 'success' | 'warning' | 'error';
+export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'INFO' | 'WARN' | 'CRITICAL';
 
 export interface NotificationItem {
   id: string;
   title: string;
   message: string;
   type: NotificationType;
+  severity?: 'INFO' | 'WARN' | 'CRITICAL' | string;
+  detail?: string;
   timestamp: string;
   read: boolean;
 }
