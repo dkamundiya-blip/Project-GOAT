@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -67,6 +68,9 @@ async def lifespan(app: FastAPI):
     _log.info("starting_goat_production_server")
 
     # 1. Initialize Ingestion Engine
+    db_resolved_path = str(DB_PATH)
+    db_exists_before = Path(DB_PATH).exists() if DB_PATH != ":memory:" else False
+    _log.info("database_storage_initialization", db_path=db_resolved_path, exists=db_exists_before)
     engine = LiveMarketDataIngestionEngine(db_path=DB_PATH)
     await engine.start()
 
