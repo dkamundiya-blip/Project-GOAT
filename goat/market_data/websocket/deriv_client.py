@@ -146,40 +146,79 @@ class DerivWebSocketClient:
             return False
 
     async def subscribe_symbol(self, deriv_ws_symbol: str) -> str:
-        """Subscribe to streaming tick prices for a symbol.
-
-        Args:
-            deriv_ws_symbol: Deriv symbol identifier (e.g. R_100, stpRNG).
-
-        Returns:
-            Subscription ID string.
-        """
+        """Subscribe to tick feed for a symbol and fetch initial historical ticks."""
         if deriv_ws_symbol in self._active_subscriptions:
             return self._active_subscriptions[deriv_ws_symbol]
 
         _log.info("subscribing_deriv_symbol", symbol=deriv_ws_symbol)
-        resp = await self.request({"ticks": deriv_ws_symbol, "subscribe": 1})
+        req_payload = {
+            "ticks_history": deriv_ws_symbol,
+            "count": 50,
+            "end": "latest",
+            "style": "ticks",
+        }
+        resp = await self.request(req_payload)
 
         if "error" in resp:
             err_msg = resp["error"].get("message", "Subscription error")
             _log.error("subscription_failed", symbol=deriv_ws_symbol, error=err_msg)
             raise RuntimeError(f"Subscription failed for {deriv_ws_symbol}: {err_msg}")
 
-        sub_info = resp.get("subscription", {})
-        sub_id = str(sub_info.get("id") or resp.get("tick", {}).get("id") or f"sub_{deriv_ws_symbol}")
+        # Ingest initial tick history payload into pipeline
+        if "history" in resp and self.on_tick:
+            hist = resp.get("history", {})
+            prices = hist.get("prices", [])
+            times = hist.get("times", [])
+            sym = resp.get("echo_req", {}).get("ticks_history", deriv_ws_symbol)
+            for p, t in zip(prices, times):
+                tick_payload = {
+                    "tick": {
+                        "symbol": sym,
+                        "quote": float(p),
+                        "epoch": int(t),
+                        "pip_size": 2,
+                    }
+                }
+                await self.on_tick(tick_payload)
+
+        sub_id = f"sub_{deriv_ws_symbol}"
         self._active_subscriptions[deriv_ws_symbol] = sub_id
         _log.info("subscribed_deriv_symbol", symbol=deriv_ws_symbol, sub_id=sub_id)
         return sub_id
 
+    async def fetch_latest_tick(self, deriv_ws_symbol: str) -> None:
+        """Fetch latest live tick for symbol and ingest into pipeline."""
+        if not self.is_connected:
+            return
+        req_payload = {
+            "ticks_history": deriv_ws_symbol,
+            "count": 1,
+            "end": "latest",
+            "style": "ticks",
+        }
+        try:
+            resp = await self.request(req_payload, timeout=5.0)
+            if "history" in resp and self.on_tick:
+                hist = resp.get("history", {})
+                prices = hist.get("prices", [])
+                times = hist.get("times", [])
+                if prices and times:
+                    tick_payload = {
+                        "tick": {
+                            "symbol": deriv_ws_symbol,
+                            "quote": float(prices[-1]),
+                            "epoch": int(times[-1]),
+                            "pip_size": 2,
+                        }
+                    }
+                    await self.on_tick(tick_payload)
+        except Exception as exc:
+            _log.warning("fetch_latest_tick_failed", symbol=deriv_ws_symbol, error=str(exc))
+
     async def unsubscribe_symbol(self, deriv_ws_symbol: str) -> None:
         """Unsubscribe from symbol tick stream."""
-        sub_id = self._active_subscriptions.pop(deriv_ws_symbol, None)
-        if sub_id and self.is_connected:
-            _log.info("unsubscribing_deriv_symbol", symbol=deriv_ws_symbol, sub_id=sub_id)
-            try:
-                await self.request({"forget": sub_id})
-            except Exception as exc:
-                _log.warning("unsubscribe_request_failed", error=str(exc))
+        self._active_subscriptions.pop(deriv_ws_symbol, None)
+        _log.info("unsubscribed_deriv_symbol", symbol=deriv_ws_symbol)
 
     async def _message_loop(self) -> None:
         """Receive and route WebSocket messages continuously."""
@@ -195,9 +234,27 @@ class DerivWebSocketClient:
                     if fut and not fut.done():
                         fut.set_result(msg)
 
-                # 2. Check msg_type for live tick stream
-                if msg.get("msg_type") == "tick" and self.on_tick:
-                    await self.on_tick(msg)
+                # 2. Route historical ticks array payload if present
+                if ("history" in msg or msg.get("msg_type") == "history") and self.on_tick:
+                    hist = msg.get("history", {})
+                    prices = hist.get("prices", [])
+                    times = hist.get("times", [])
+                    sym = msg.get("echo_req", {}).get("ticks_history", "UNKNOWN")
+                    for p, t in zip(prices, times):
+                        tick_payload = {
+                            "tick": {
+                                "symbol": sym,
+                                "quote": float(p),
+                                "epoch": int(t),
+                                "pip_size": 2,
+                            }
+                        }
+                        await self.on_tick(tick_payload)
+
+                # 3. Route live tick / ohlc stream frame to callback
+                if (msg.get("msg_type") in ("tick", "ohlc") or "tick" in msg or "ohlc" in msg) and self.on_tick:
+                    if msg.get("msg_type") != "history" and "history" not in msg:
+                        await self.on_tick(msg)
 
             except ConnectionClosed:
                 _log.warning("websocket_connection_closed")

@@ -1,5 +1,8 @@
 /**
- * Project GOAT v1.0 — Dashboard REST Client Implementation
+ * Project GOAT v1.1 — Dashboard REST Client Implementation
+ *
+ * Production REST API client making live HTTP requests to backend gateway.
+ * Zero mock returns or dummy payloads.
  */
 
 import { requestBuilder } from './requestBuilder';
@@ -24,9 +27,18 @@ export class APIClient {
       });
 
       try {
-        const mockPayload = { message: `GET response for ${options.url}` } as unknown as T;
-        const res = await timeoutManager.withTimeout(Promise.resolve(mockPayload), 5000);
-        return responseParser.parse<T>(res);
+        const fetchPromise = fetch(options.url, {
+          method: 'GET',
+          headers: options.headers,
+        }).then(async (res) => {
+          if (!res.ok) {
+            throw new Error(`HTTP Error (${res.status} ${res.statusText})`);
+          }
+          return await res.json();
+        });
+
+        const rawData = await timeoutManager.withTimeout(fetchPromise, 10000);
+        return responseParser.parse<T>(rawData);
       } catch (err) {
         throw errorHandler.handle(err);
       }
@@ -42,9 +54,19 @@ export class APIClient {
       });
 
       try {
-        const mockPayload = { message: `POST response for ${options.url}`, body } as unknown as T;
-        const res = await timeoutManager.withTimeout(Promise.resolve(mockPayload), 5000);
-        return responseParser.parse<T>(res, 201);
+        const fetchPromise = fetch(options.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...options.headers },
+          body: JSON.stringify(body),
+        }).then(async (res) => {
+          if (!res.ok) {
+            throw new Error(`HTTP Error (${res.status} ${res.statusText})`);
+          }
+          return await res.json();
+        });
+
+        const rawData = await timeoutManager.withTimeout(fetchPromise, 10000);
+        return responseParser.parse<T>(rawData, 201);
       } catch (err) {
         throw errorHandler.handle(err);
       }
