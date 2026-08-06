@@ -307,10 +307,14 @@ class LiveCandleBuilder:
                 """
                 SELECT candle_id, symbol, timeframe, open, high, low, close, volume,
                        open_timestamp, close_timestamp, completed, checksum, metadata_json, canonical_hash
-                FROM live_market_candles
-                WHERE symbol = ? AND timeframe = ?
-                ORDER BY open_timestamp ASC
-                LIMIT ?;
+                FROM (
+                    SELECT candle_id, symbol, timeframe, open, high, low, close, volume,
+                           open_timestamp, close_timestamp, completed, checksum, metadata_json, canonical_hash
+                    FROM live_market_candles
+                    WHERE symbol = ? AND timeframe = ?
+                    ORDER BY open_timestamp DESC
+                    LIMIT ?
+                ) ORDER BY open_timestamp ASC;
                 """,
                 (sym, tf, limit),
             )

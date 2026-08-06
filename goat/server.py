@@ -212,7 +212,7 @@ def get_market_latest_candle(symbol_id: str, timeframe: str = Query(default="1M"
 def get_market_historical_candles(
     symbol_id: str,
     timeframe: str = Query(default="1M"),
-    limit: int = Query(default=100, ge=1, le=1000),
+    limit: int = Query(default=300, ge=1, le=1000),
 ):
     if not market_handler:
         raise HTTPException(status_code=500, detail="Market handler not initialized")

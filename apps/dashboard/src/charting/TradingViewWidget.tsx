@@ -12,6 +12,7 @@
  * - Synchronized Crosshair with Price (Y-axis) & Time (X-axis) badges
  * - Last price dashed line & live price tag
  * - Strict OHLC live tick streaming aggregation & timeframe boundary handling
+ * - Audit logging: history.length, bars.length, visibleBars.length
  */
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
@@ -110,7 +111,7 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
       { from: 0, to: Math.floor(Date.now() / 1000), firstDataRequest: true },
       (fetchedBars) => {
         if (isSubscribed) {
-          console.log('[TradingViewWidget] Loaded initial bars count for', symbol, fetchedBars.length);
+          console.log('[TradingViewWidget Audit] getBars fetched historical bars:', fetchedBars.length);
           setBars(fetchedBars);
         }
       },
@@ -132,8 +133,10 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
             if (last.time === fullBar.time) {
               const updated = [...prev];
               updated[updated.length - 1] = fullBar;
+              console.log('[TradingViewWidget Audit] WebSocket tick mutated final candle (bars.length unchanged):', prev.length);
               return updated;
             } else if (fullBar.time > last.time) {
+              console.log('[TradingViewWidget Audit] Timeframe boundary crossed: new candle appended (bars.length increased):', prev.length + 1);
               return [...prev, fullBar];
             }
             return prev;
@@ -168,6 +171,7 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
             };
             const updated = [...prev];
             updated[updated.length - 1] = updatedLast;
+            console.log('[TradingViewWidget Audit] WebSocket tick mutated final candle (bars.length unchanged):', prev.length);
             return updated;
           } else if (tickTime > last.time) {
             // Timeframe boundary crossed -> Finalize open candle & open new forming candle
@@ -179,6 +183,7 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
               close: tickPrice,
               volume: 1,
             };
+            console.log('[TradingViewWidget Audit] Timeframe boundary crossed: new candle appended (bars.length increased):', prev.length + 1);
             return [...prev, newBar];
           }
           return prev;
@@ -250,6 +255,9 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
     const visibleBars = bars.slice(startIndex, endIndex);
 
     if (visibleBars.length === 0) return;
+
+    // Console Audit: Print history.length, bars.length, visibleBars.length before rendering
+    console.log(`[TradingViewWidget Pipeline Audit] history.length=${bars.length} | bars.length=${bars.length} | visibleBars.length=${visibleBars.length}`);
 
     // Compute Price Bounds strictly from visible candle range
     let minPrice = Infinity;
