@@ -6,6 +6,7 @@ import { KPICard } from '../components/ui/KPICard';
 import { useMarketData } from '../hooks/useMarketData';
 import { LiveQuoteDTO } from '../types/marketData';
 import { TradingViewContainer } from '../charting/TradingViewContainer';
+import { OrderTicketWidget } from '../components/widgets/OrderTicketWidget';
 
 export const MarketsPage: React.FC = () => {
   const { quotes, telemetry } = useMarketData(1500);
@@ -151,6 +152,9 @@ export const MarketsPage: React.FC = () => {
       <Card title="Institutional TradingView Interactive Chart" subtitle="Multi-timeframe streaming charting engine">
         <TradingViewContainer initialSymbol="VOLATILITY_100" initialTimeframe="1M" />
       </Card>
+
+      {/* Institutional Order Execution & Position Panel */}
+      <OrderTicketWidget />
 
       {/* Synthetic Instruments Table */}
       <Card title="Live Synthetic Instruments Catalogue" subtitle="Real-time quotes & stream metrics">
