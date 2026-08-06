@@ -13,6 +13,7 @@
 
 import { SeriesMarker, Time } from 'lightweight-charts';
 import { BarData } from './TradingViewDataFeed';
+import { ChartSettings, defaultChartSettings } from './ChartSettings';
 
 export interface FairValueGap {
   id: string;
@@ -81,32 +82,46 @@ export class InstitutionalOverlayManager {
   }
 
   /**
-   * Convert FVG and Structural events into Lightweight Charts SeriesMarkers
+   * Convert FVG and Structural events into Lightweight Charts SeriesMarkers.
+   * Dormant by default (Task 3).
+   * Returns empty array unless showInstitutionalOverlays is explicitly true.
+   * Never renders text labels on candles (Task 1 & Task 6).
    */
-  public static generateOverlayMarkers(bars: BarData[]): SeriesMarker<Time>[] {
-    const markers: SeriesMarker<Time>[] = [];
-    const gaps = this.detectFairValueGaps(bars);
+  public static generateOverlayMarkers(
+    bars: BarData[],
+    settings: ChartSettings = defaultChartSettings
+  ): SeriesMarker<Time>[] {
+    // Task 3: Dormant by default
+    if (!settings.showInstitutionalOverlays) {
+      return [];
+    }
 
-    gaps.slice(-10).forEach((fvg) => {
-      const timeSec = (fvg.time > 2000000000 ? Math.floor(fvg.time / 1000) : fvg.time) as Time;
-      if (fvg.type === 'BULLISH') {
-        markers.push({
-          time: timeSec,
-          position: 'belowBar',
-          color: '#10b981',
-          shape: 'arrowUp',
-          text: 'FVG',
-        });
-      } else {
-        markers.push({
-          time: timeSec,
-          position: 'aboveBar',
-          color: '#f43f5e',
-          shape: 'arrowDown',
-          text: 'FVG',
-        });
-      }
-    });
+    const markers: SeriesMarker<Time>[] = [];
+
+    // FVG Markers (only if showFVG === true)
+    if (settings.showFVG) {
+      const gaps = this.detectFairValueGaps(bars);
+      gaps.slice(-10).forEach((fvg) => {
+        const timeSec = (fvg.time > 2000000000 ? Math.floor(fvg.time / 1000) : fvg.time) as Time;
+        if (fvg.type === 'BULLISH') {
+          markers.push({
+            time: timeSec,
+            position: 'belowBar',
+            color: '#10b981',
+            shape: 'arrowUp',
+            // Omit text property to prevent floating text clutter per Task 1 & Task 6
+          });
+        } else {
+          markers.push({
+            time: timeSec,
+            position: 'aboveBar',
+            color: '#f43f5e',
+            shape: 'arrowDown',
+            // Omit text property to prevent floating text clutter per Task 1 & Task 6
+          });
+        }
+      });
+    }
 
     return markers;
   }

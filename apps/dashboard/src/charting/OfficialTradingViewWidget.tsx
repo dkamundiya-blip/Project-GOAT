@@ -94,11 +94,11 @@ export const OfficialTradingViewWidget: React.FC<OfficialTradingViewWidgetProps>
             <span>OFFICIAL TRADINGVIEW CHARTING LIBRARY ASSETS PENDING (/charting_library/)</span>
           </div>
           <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">
-            FALLBACK CANVAS ENGINE ACTIVE (60 FPS)
+            LIGHTWEIGHT CHARTS ENGINE ACTIVE
           </span>
         </div>
 
-        {/* Fallback Canvas Engine */}
+        {/* Embedded Lightweight Charts Engine */}
         <div className="flex-1 relative">
           <TradingViewWidget symbol={symbol} timeframe={timeframe} height={height} theme={theme} />
         </div>

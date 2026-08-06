@@ -19,3 +19,6 @@ export * from './OfficialTradingViewWidget';
 export * from './TradingViewLoader';
 export * from './TradingViewContainer';
 export * from './TradingViewProvider';
+export * from './ChartContainer';
+export * from './ChartSettings';
+export * from './InstitutionalOverlay';

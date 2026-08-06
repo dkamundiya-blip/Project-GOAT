@@ -27,6 +27,7 @@ import {
 import { BarData } from './TradingViewDataFeed';
 import { Position } from '../components/widgets/OrderTicketWidget';
 import { InstitutionalOverlayManager } from './InstitutionalOverlay';
+import { ChartSettings, defaultChartSettings } from './ChartSettings';
 
 export interface ChartContainerProps {
   bars: BarData[];
@@ -37,6 +38,7 @@ export interface ChartContainerProps {
   bidPrice?: number;
   askPrice?: number;
   lastPrice?: number;
+  chartSettings?: ChartSettings;
   onCrosshairMove?: (price: number | null, time: number | null) => void;
   height?: number | string;
 }
@@ -50,6 +52,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   bidPrice,
   askPrice,
   lastPrice,
+  chartSettings = defaultChartSettings,
   onCrosshairMove,
   height = '100%',
 }) => {
@@ -202,22 +205,23 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     };
   }, [theme]);
 
-  // 2. Set Data & Update Overlay Markers when `bars` changes
+  // 2. Set Data & Update Overlay Layer when `bars` or `chartSettings` changes (Task 8: Independent Layer Plugin)
   useEffect(() => {
     const series = seriesRef.current;
     if (!series || bars.length === 0) return;
 
+    // Candlestick Layer: Update OHLC data
     const formattedBars = toCandlestickData(bars);
     series.setData(formattedBars);
 
-    // Apply Overlay Markers (FVG & Structural signals)
+    // Overlay Layer: Apply markers only when enabled via chartSettings (dormant by default: Task 3)
     try {
-      const overlayMarkers = InstitutionalOverlayManager.generateOverlayMarkers(bars) as SeriesMarker<Time>[];
+      const overlayMarkers = InstitutionalOverlayManager.generateOverlayMarkers(bars, chartSettings) as SeriesMarker<Time>[];
       createSeriesMarkers(series, overlayMarkers);
     } catch (e) {
       // Markers fallback
     }
-  }, [bars]);
+  }, [bars, chartSettings]);
 
   // 3. Update Native Price Lines for Bid, Ask, Last Price, and Open Positions
   useEffect(() => {

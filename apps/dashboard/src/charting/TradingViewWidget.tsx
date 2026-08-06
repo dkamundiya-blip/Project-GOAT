@@ -16,6 +16,7 @@ import { TradingViewDataFeed, BarData } from './TradingViewDataFeed';
 import { ChartStyleType, CrosshairModeType, ThemeType } from './ChartState';
 import { DrawingToolType } from './DrawingManager';
 import { ChartContainer } from './ChartContainer';
+import { ChartSettings, defaultChartSettings } from './ChartSettings';
 import { Position } from '../components/widgets/OrderTicketWidget';
 
 export interface TradingViewWidgetProps {
@@ -33,6 +34,7 @@ export interface TradingViewWidgetProps {
   bidPrice?: number;
   askPrice?: number;
   lastPrice?: number;
+  chartSettings?: ChartSettings;
   onCrosshairMove?: (price: number | null, time: number | null) => void;
 }
 
@@ -46,6 +48,7 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
   bidPrice,
   askPrice,
   lastPrice,
+  chartSettings = defaultChartSettings,
   onCrosshairMove,
 }) => {
   const [bars, setBars] = useState<BarData[]>([]);
@@ -178,6 +181,7 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
       bidPrice={bidPrice}
       askPrice={askPrice}
       lastPrice={lastPrice}
+      chartSettings={chartSettings}
       onCrosshairMove={onCrosshairMove}
     />
   );
