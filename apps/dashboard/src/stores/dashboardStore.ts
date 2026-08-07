@@ -1,5 +1,8 @@
 /**
  * Project GOAT v1.0 — Dashboard Overview State Store
+ *
+ * Initialized with null summary to prevent shadowing live WebSocket telemetry.
+ * Zero static mock metrics.
  */
 
 import { create } from 'zustand';
@@ -11,7 +14,7 @@ interface DashboardState {
   governanceDecisions: GovernanceDecisionItem[];
   isLoading: boolean;
   error: string | null;
-  setSummary: (summary: SystemOverviewMetrics) => void;
+  setSummary: (summary: SystemOverviewMetrics | null) => void;
   setHypotheses: (hypotheses: HypothesisSummaryItem[]) => void;
   setGovernanceDecisions: (decisions: GovernanceDecisionItem[]) => void;
   setLoading: (loading: boolean) => void;
@@ -19,15 +22,7 @@ interface DashboardState {
 }
 
 export const useDashboardStore = create<DashboardState>((set) => ({
-  summary: {
-    hypothesis_count: 42,
-    evidence_records_count: 1250,
-    validated_edges_count: 18,
-    promoted_edges_count: 5,
-    knowledge_graph_nodes: 156,
-    intelligence_health_score: 94.5,
-    database_status: 'ONLINE_READ_ONLY',
-  },
+  summary: null,
   hypotheses: [],
   governanceDecisions: [],
   isLoading: false,
