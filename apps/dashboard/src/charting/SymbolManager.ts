@@ -27,7 +27,7 @@ export const SUPPORTED_CHART_SYMBOLS: Record<string, ChartSymbolMetadata> = {
     minMove: 1,
     pricescale: 1000,
     hasIntraday: true,
-    supportedResolutions: ['1', '5', '15', '30', '60', '240', 'D'],
+    supportedResolutions: ['1', '5', '15', '30', '60', '240', '1D'],
   },
   VOLATILITY_25: {
     id: 'VOLATILITY_25',
@@ -39,7 +39,7 @@ export const SUPPORTED_CHART_SYMBOLS: Record<string, ChartSymbolMetadata> = {
     minMove: 1,
     pricescale: 1000,
     hasIntraday: true,
-    supportedResolutions: ['1', '5', '15', '30', '60', '240', 'D'],
+    supportedResolutions: ['1', '5', '15', '30', '60', '240', '1D'],
   },
   VOLATILITY_50: {
     id: 'VOLATILITY_50',
@@ -51,7 +51,7 @@ export const SUPPORTED_CHART_SYMBOLS: Record<string, ChartSymbolMetadata> = {
     minMove: 1,
     pricescale: 10000,
     hasIntraday: true,
-    supportedResolutions: ['1', '5', '15', '30', '60', '240', 'D'],
+    supportedResolutions: ['1', '5', '15', '30', '60', '240', '1D'],
   },
   VOLATILITY_75: {
     id: 'VOLATILITY_75',
@@ -63,7 +63,7 @@ export const SUPPORTED_CHART_SYMBOLS: Record<string, ChartSymbolMetadata> = {
     minMove: 1,
     pricescale: 10000,
     hasIntraday: true,
-    supportedResolutions: ['1', '5', '15', '30', '60', '240', 'D'],
+    supportedResolutions: ['1', '5', '15', '30', '60', '240', '1D'],
   },
   VOLATILITY_100: {
     id: 'VOLATILITY_100',
@@ -75,7 +75,7 @@ export const SUPPORTED_CHART_SYMBOLS: Record<string, ChartSymbolMetadata> = {
     minMove: 1,
     pricescale: 100,
     hasIntraday: true,
-    supportedResolutions: ['1', '5', '15', '30', '60', '240', 'D'],
+    supportedResolutions: ['1', '5', '15', '30', '60', '240', '1D'],
   },
   BOOM_500: {
     id: 'BOOM_500',
@@ -87,7 +87,7 @@ export const SUPPORTED_CHART_SYMBOLS: Record<string, ChartSymbolMetadata> = {
     minMove: 1,
     pricescale: 1000,
     hasIntraday: true,
-    supportedResolutions: ['1', '5', '15', '30', '60', '240', 'D'],
+    supportedResolutions: ['1', '5', '15', '30', '60', '240', '1D'],
   },
   BOOM_1000: {
     id: 'BOOM_1000',
@@ -99,7 +99,7 @@ export const SUPPORTED_CHART_SYMBOLS: Record<string, ChartSymbolMetadata> = {
     minMove: 1,
     pricescale: 1000,
     hasIntraday: true,
-    supportedResolutions: ['1', '5', '15', '30', '60', '240', 'D'],
+    supportedResolutions: ['1', '5', '15', '30', '60', '240', '1D'],
   },
   CRASH_500: {
     id: 'CRASH_500',
@@ -111,7 +111,7 @@ export const SUPPORTED_CHART_SYMBOLS: Record<string, ChartSymbolMetadata> = {
     minMove: 1,
     pricescale: 1000,
     hasIntraday: true,
-    supportedResolutions: ['1', '5', '15', '30', '60', '240', 'D'],
+    supportedResolutions: ['1', '5', '15', '30', '60', '240', '1D'],
   },
   CRASH_1000: {
     id: 'CRASH_1000',
@@ -123,7 +123,7 @@ export const SUPPORTED_CHART_SYMBOLS: Record<string, ChartSymbolMetadata> = {
     minMove: 1,
     pricescale: 1000,
     hasIntraday: true,
-    supportedResolutions: ['1', '5', '15', '30', '60', '240', 'D'],
+    supportedResolutions: ['1', '5', '15', '30', '60', '240', '1D'],
   },
   STEP_INDEX: {
     id: 'STEP_INDEX',
@@ -135,7 +135,7 @@ export const SUPPORTED_CHART_SYMBOLS: Record<string, ChartSymbolMetadata> = {
     minMove: 1,
     pricescale: 100,
     hasIntraday: true,
-    supportedResolutions: ['1', '5', '15', '30', '60', '240', 'D'],
+    supportedResolutions: ['1', '5', '15', '30', '60', '240', '1D'],
   },
   JUMP_10: {
     id: 'JUMP_10',
@@ -147,7 +147,7 @@ export const SUPPORTED_CHART_SYMBOLS: Record<string, ChartSymbolMetadata> = {
     minMove: 1,
     pricescale: 1000,
     hasIntraday: true,
-    supportedResolutions: ['1', '5', '15', '30', '60', '240', 'D'],
+    supportedResolutions: ['1', '5', '15', '30', '60', '240', '1D'],
   },
   JUMP_25: {
     id: 'JUMP_25',
@@ -159,7 +159,7 @@ export const SUPPORTED_CHART_SYMBOLS: Record<string, ChartSymbolMetadata> = {
     minMove: 1,
     pricescale: 1000,
     hasIntraday: true,
-    supportedResolutions: ['1', '5', '15', '30', '60', '240', 'D'],
+    supportedResolutions: ['1', '5', '15', '30', '60', '240', '1D'],
   },
   JUMP_50: {
     id: 'JUMP_50',
@@ -171,7 +171,7 @@ export const SUPPORTED_CHART_SYMBOLS: Record<string, ChartSymbolMetadata> = {
     minMove: 1,
     pricescale: 10000,
     hasIntraday: true,
-    supportedResolutions: ['1', '5', '15', '30', '60', '240', 'D'],
+    supportedResolutions: ['1', '5', '15', '30', '60', '240', '1D'],
   },
   JUMP_75: {
     id: 'JUMP_75',
@@ -183,7 +183,7 @@ export const SUPPORTED_CHART_SYMBOLS: Record<string, ChartSymbolMetadata> = {
     minMove: 1,
     pricescale: 10000,
     hasIntraday: true,
-    supportedResolutions: ['1', '5', '15', '30', '60', '240', 'D'],
+    supportedResolutions: ['1', '5', '15', '30', '60', '240', '1D'],
   },
   JUMP_100: {
     id: 'JUMP_100',
@@ -195,7 +195,7 @@ export const SUPPORTED_CHART_SYMBOLS: Record<string, ChartSymbolMetadata> = {
     minMove: 1,
     pricescale: 100,
     hasIntraday: true,
-    supportedResolutions: ['1', '5', '15', '30', '60', '240', 'D'],
+    supportedResolutions: ['1', '5', '15', '30', '60', '240', '1D'],
   },
 };
 

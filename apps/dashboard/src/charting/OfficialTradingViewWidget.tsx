@@ -41,7 +41,7 @@ export const OfficialTradingViewWidget: React.FC<OfficialTradingViewWidgetProps>
 
       if (available) {
         const resolution = TimeframeManager.goatTimeframeToResolution(timeframe);
-        const datafeed = new TradingViewDataFeed();
+        const datafeed = TradingViewDataFeed.getInstance();
 
         // Instantiate Official TradingView.widget
         const widgetOptions: any = {

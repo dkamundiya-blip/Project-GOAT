@@ -5,8 +5,10 @@ Project GOAT v0.9 — SQLite Persistence Repositories for Quantitative Edge Disc
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import sqlite3
-from typing import Any
+import threading
+from typing import Any, Sequence
 
 from goat.edge_discovery.core.enums import (
     EdgeCategory,
@@ -25,13 +27,58 @@ from goat.edge_discovery.core.models import (
     NoveltyAssessment,
     PatternCluster,
 )
+from goat.edge_discovery.models.edge import (
+    DiscoveredEdge,
+    EdgePerformanceMetrics,
+    EdgeStatus,
+)
+from goat.edge_discovery.persistence.interfaces import IEdgeRepository
 
 
-def init_edge_discovery_db(conn: sqlite3.Connection) -> None:
+def init_edge_discovery_db(conn_or_path: sqlite3.Connection | str | Path) -> sqlite3.Connection:
     """Initialize SQLite database tables, indexes, and pragmas for Edge Discovery subsystem."""
-    conn.execute("PRAGMA foreign_keys = ON;")
-    conn.execute("PRAGMA journal_mode = WAL;")
+    if isinstance(conn_or_path, (str, Path)):
+        path_str = str(conn_or_path)
+        if path_str != ":memory:":
+            Path(path_str).parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(path_str, check_same_thread=False)
+    else:
+        conn = conn_or_path
+
+    try:
+        conn.execute("PRAGMA foreign_keys = ON;")
+        conn.execute("PRAGMA journal_mode = WAL;")
+    except Exception:
+        pass
+
     with conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS discovered_edges (
+                edge_id TEXT PRIMARY KEY,
+                version TEXT NOT NULL,
+                hypothesis_id TEXT NOT NULL,
+                feature_combination_json TEXT NOT NULL,
+                supported_symbols_json TEXT NOT NULL,
+                supported_timeframes_json TEXT NOT NULL,
+                metrics_json TEXT NOT NULL,
+                p_value REAL NOT NULL,
+                confidence_interval_low REAL NOT NULL,
+                confidence_interval_high REAL NOT NULL,
+                effect_size REAL NOT NULL,
+                composite_score REAL NOT NULL,
+                discovery_date TEXT NOT NULL,
+                last_validation_date TEXT NOT NULL,
+                status TEXT NOT NULL,
+                regime_performance_json TEXT NOT NULL,
+                walk_forward_metrics_json TEXT NOT NULL,
+                checksum TEXT NOT NULL,
+                metadata_json TEXT NOT NULL,
+                canonical_hash TEXT NOT NULL
+            );
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_edge_status ON discovered_edges (status);")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_edge_score ON discovered_edges (composite_score DESC);")
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS edge_patterns (
                 pattern_id TEXT PRIMARY KEY,
@@ -132,6 +179,7 @@ def init_edge_discovery_db(conn: sqlite3.Connection) -> None:
                 canonical_hash TEXT NOT NULL
             );
         """)
+    return conn
 
 
 class PatternRepository:
@@ -527,3 +575,137 @@ class EdgeDiscoveryPersistenceContext:
     def close(self) -> None:
         """Close database connection."""
         self.conn.close()
+
+
+class SQLiteEdgeRepository(IEdgeRepository):
+    """SQLite implementation of IEdgeRepository for Phase 6 DiscoveredEdge instances."""
+
+    def __init__(self, conn: sqlite3.Connection):
+        self.conn = conn
+        self._lock = threading.RLock()
+
+    def _row_to_edge(self, r: tuple) -> DiscoveredEdge:
+        metrics_dict = json.loads(r[6])
+        return DiscoveredEdge(
+            edge_id=r[0],
+            version=r[1],
+            hypothesis_id=r[2],
+            feature_combination=json.loads(r[3]),
+            supported_symbols=json.loads(r[4]),
+            supported_timeframes=json.loads(r[5]),
+            metrics=EdgePerformanceMetrics(**metrics_dict),
+            p_value=r[7],
+            confidence_interval_low=r[8],
+            confidence_interval_high=r[9],
+            effect_size=r[10],
+            composite_score=r[11],
+            discovery_date=r[12],
+            last_validation_date=r[13],
+            status=EdgeStatus(r[14]),
+            regime_performance=json.loads(r[15]),
+            walk_forward_metrics=json.loads(r[16]),
+            checksum=r[17],
+            metadata=json.loads(r[18]),
+            canonical_hash=r[19],
+        )
+
+    def save_edge(self, edge: DiscoveredEdge) -> None:
+        with self._lock, self.conn:
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO discovered_edges (
+                    edge_id, version, hypothesis_id, feature_combination_json,
+                    supported_symbols_json, supported_timeframes_json, metrics_json,
+                    p_value, confidence_interval_low, confidence_interval_high,
+                    effect_size, composite_score, discovery_date, last_validation_date,
+                    status, regime_performance_json, walk_forward_metrics_json,
+                    checksum, metadata_json, canonical_hash
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    edge.edge_id,
+                    edge.version,
+                    edge.hypothesis_id,
+                    json.dumps(edge.feature_combination),
+                    json.dumps(edge.supported_symbols),
+                    json.dumps(edge.supported_timeframes),
+                    json.dumps(edge.metrics.model_dump()),
+                    edge.p_value,
+                    edge.confidence_interval_low,
+                    edge.confidence_interval_high,
+                    edge.effect_size,
+                    edge.composite_score,
+                    edge.discovery_date,
+                    edge.last_validation_date,
+                    edge.status.value,
+                    json.dumps(edge.regime_performance),
+                    json.dumps(edge.walk_forward_metrics),
+                    edge.checksum,
+                    json.dumps(edge.metadata),
+                    edge.canonical_hash,
+                ),
+            )
+
+    def save_edges(self, edges: Sequence[DiscoveredEdge]) -> None:
+        for e in edges:
+            self.save_edge(e)
+
+    def get_edge(self, edge_id: str) -> DiscoveredEdge | None:
+        with self._lock:
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT * FROM discovered_edges WHERE edge_id = ?;", (edge_id,))
+            row = cursor.fetchone()
+            return self._row_to_edge(row) if row else None
+
+    def get_recent_edges(
+        self,
+        symbol: str | None = None,
+        status: EdgeStatus | None = None,
+        limit: int = 100,
+    ) -> list[DiscoveredEdge]:
+        with self._lock:
+            cursor = self.conn.cursor()
+            query = "SELECT * FROM discovered_edges"
+            params: list = []
+            conditions: list[str] = []
+
+            if status:
+                conditions.append("status = ?")
+                params.append(status.value)
+
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+
+            query += " ORDER BY discovery_date DESC LIMIT ?;"
+            params.append(limit)
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            edges = [self._row_to_edge(r) for r in rows]
+
+            if symbol:
+                edges = [e for e in edges if symbol.upper() in [s.upper() for s in e.supported_symbols]]
+            return edges
+
+    def get_top_edges(self, limit: int = 50) -> list[DiscoveredEdge]:
+        with self._lock:
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT * FROM discovered_edges ORDER BY composite_score DESC LIMIT ?;", (limit,))
+            rows = cursor.fetchall()
+            return [self._row_to_edge(r) for r in rows]
+
+    def update_edge_status(self, edge_id: str, status: EdgeStatus) -> None:
+        with self._lock, self.conn:
+            self.conn.execute(
+                "UPDATE discovered_edges SET status = ? WHERE edge_id = ?;",
+                (status.value, edge_id),
+            )
+
+    def count(self, status: EdgeStatus | None = None) -> int:
+        with self._lock:
+            cursor = self.conn.cursor()
+            if status:
+                cursor.execute("SELECT COUNT(*) FROM discovered_edges WHERE status = ?;", (status.value,))
+            else:
+                cursor.execute("SELECT COUNT(*) FROM discovered_edges;")
+            return cursor.fetchone()[0]

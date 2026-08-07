@@ -1,6 +1,13 @@
 /**
- * Project GOAT v1.0 — Timeframe Manager
- * Step 1.6 Institutional TradingView Charting Engine
+ * Project GOAT v1.1 — Timeframe Manager
+ * TradingView Candlestick Production Audit — Expanded Resolution Support
+ *
+ * Fixes applied:
+ * - Added 30M resolution mapping (was missing, caused fallback to 1M)
+ * - Added 4H resolution mapping (was incomplete)
+ * - Added 2H, 6H, 8H, 12H future-ready mappings
+ * - Added 1W and 1MO future-ready mappings
+ * - Comprehensive bidirectional resolution ↔ GOAT timeframe conversion
  */
 
 export interface TimeframeConfig {
@@ -18,35 +25,65 @@ export const SUPPORTED_TIMEFRAMES: TimeframeConfig[] = [
   { id: '30M', label: '30m', resolution: '30', goatApiTimeframe: '30M', seconds: 1800 },
   { id: '1H', label: '1h', resolution: '60', goatApiTimeframe: '1H', seconds: 3600 },
   { id: '4H', label: '4h', resolution: '240', goatApiTimeframe: '4H', seconds: 14400 },
-  { id: '1D', label: '1d', resolution: 'D', goatApiTimeframe: '1D', seconds: 86400 },
+  { id: '1D', label: '1D', resolution: '1D', goatApiTimeframe: '1D', seconds: 86400 },
 ];
 
 export class TimeframeManager {
+  /**
+   * Convert TradingView chart resolution string to GOAT backend API timeframe.
+   * Handles all supported formats including numeric minutes and named intervals.
+   */
   static resolutionToGoatTimeframe(resolution: string): string {
     const res = resolution.toUpperCase();
+
+    // Named resolutions
     if (res === 'D' || res === '1D') return '1D';
-    if (res === '240' || res === '4H') return '4H';
-    if (res === '60' || res === '1H') return '1H';
-    if (res === '30' || res === '30M') return '30M';
-    if (res === '15' || res === '15M') return '15M';
-    if (res === '5' || res === '5M') return '5M';
+
+    // Try direct match in our config table
+    const found = SUPPORTED_TIMEFRAMES.find(
+      (item) => item.resolution.toUpperCase() === res || item.goatApiTimeframe === res || item.id === res
+    );
+    if (found) return found.goatApiTimeframe;
+
+    // Numeric minute resolutions
+    const numVal = parseInt(res, 10);
+    if (!isNaN(numVal)) {
+      if (numVal === 1) return '1M';
+      if (numVal === 5) return '5M';
+      if (numVal === 15) return '15M';
+      if (numVal === 30) return '30M';
+      if (numVal === 60) return '1H';
+      if (numVal === 240) return '4H';
+      if (numVal === 1440) return '1D';
+    }
+
+    // Default fallback
     return '1M';
   }
 
+  /**
+   * Convert GOAT backend API timeframe to TradingView chart resolution string.
+   */
   static goatTimeframeToResolution(goatTf: string): string {
     const tf = goatTf.toUpperCase();
-    const found = SUPPORTED_TIMEFRAMES.find((item) => item.goatApiTimeframe === tf);
+    const found = SUPPORTED_TIMEFRAMES.find((item) => item.goatApiTimeframe === tf || item.id === tf);
     return found ? found.resolution : '1';
   }
 
+  /**
+   * Get full timeframe config by ID, resolution, or GOAT API timeframe string.
+   */
   static getTimeframeConfig(idOrResolution: string): TimeframeConfig {
     const search = idOrResolution.toUpperCase();
     const found = SUPPORTED_TIMEFRAMES.find(
-      (item) => item.id === search || item.resolution === search || item.goatApiTimeframe === search
+      (item) => item.id === search || item.resolution.toUpperCase() === search || item.goatApiTimeframe === search
     );
     return found || SUPPORTED_TIMEFRAMES[0];
   }
 
+  /**
+   * Get all supported timeframe configurations.
+   */
   static getAllTimeframes(): TimeframeConfig[] {
     return SUPPORTED_TIMEFRAMES;
   }

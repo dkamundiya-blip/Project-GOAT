@@ -1,12 +1,17 @@
 """
-Project GOAT v1.1 — Production ASGI FastAPI Server & Gateway
+Project GOAT v1.1 — Production ASGI FastAPI Server & Integrated Gateway
 
 Central ASGI application orchestrating:
 - Live Deriv Market Data Ingestion Engine (LiveMarketDataIngestionEngine)
-- Automatic WebSocket connection & feed subscription on startup
-- CORS middleware for multi-origin dashboard access
-- Production REST API endpoints (/api/v1/market-data/* and /api/v1/*)
-- Real-time WebSocket streaming gateway (/api/v1/market-data/ws)
+- Master System Integration Engine (MasterSystemIntegrationEngine)
+- Real-time Telemetry Broadcaster (TelemetryBroadcaster)
+- Mounted Subsystem Routers:
+  - Telemetry Stream (/ws/telemetry)
+  - Validation Router (/api/v1/validation/*)
+  - Research API Router (/api/v1/research/*)
+  - Workspace Router (/api/v1/workspace/*)
+  - Market Data REST Router (/api/v1/market-data/*)
+  - Market Data Browser WS (/api/v1/market-data/ws)
 """
 
 from __future__ import annotations
@@ -28,10 +33,20 @@ from goat.dashboard.persistence.sqlite import DashboardReadOnlyRepositoryAdapter
 from goat.dashboard.telemetry.collector import SystemTelemetryCollector
 from goat.dashboard.api.rest import DashboardRESTHandler
 
+# Phase Integration Engines & Routers
+from goat.integration.master import MasterSystemIntegrationEngine
+from goat.integration.api import create_validation_router
+from goat.telemetry.server import TelemetryBroadcaster, create_telemetry_router
+from goat.ai_reasoning.api.router import create_research_router
+from goat.workspace.api import create_workspace_router
+from goat.workspace.store import SQLiteWorkspaceRepository, init_workspace_db
+
 _log = get_logger("goat.server")
 
 # Global Engine & Handler References
 engine: LiveMarketDataIngestionEngine | None = None
+master_engine: MasterSystemIntegrationEngine | None = None
+broadcaster: TelemetryBroadcaster | None = None
 market_handler: MarketDataRESTHandler | None = None
 dashboard_handler: DashboardRESTHandler | None = None
 
@@ -55,26 +70,39 @@ async def broadcast_tick_to_websockets(raw_payload: dict[str, Any]) -> None:
 
 
 async def on_tick_pipeline_wrapper(raw_payload: dict[str, Any]) -> None:
-    """Master tick pipeline handler: Normalizes tick into engine & broadcasts to browser WebSockets."""
+    """Master tick pipeline handler: Forwards tick to Ingestion Engine, Master Integration Engine, and WebSockets."""
     if engine:
         await engine._on_raw_tick_received(raw_payload)
+
+    if master_engine:
+        try:
+            sym = raw_payload.get("symbol", "BOOM_1000")
+            price = float(raw_payload.get("price", raw_payload.get("quote", 1000.0)))
+            ts = raw_payload.get("timestamp")
+            master_engine.process_tick(symbol=sym, price=price, timestamp_iso=ts)
+        except Exception as exc:
+            _log.error("master_engine_tick_pipeline_exception", error=str(exc))
+
     await broadcast_tick_to_websockets(raw_payload)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifecycle manager: Start Live Market Engine on startup & stop on shutdown."""
-    global engine, market_handler, dashboard_handler
+    """Lifecycle manager: Start Live Ingestion & Master Engines on startup & stop on shutdown."""
+    global engine, master_engine, broadcaster, market_handler, dashboard_handler
     _log.info("starting_goat_production_server")
 
-    # 1. Initialize Ingestion Engine
+    # 1. Initialize Ingestion & Master System Engines
     db_resolved_path = str(DB_PATH)
-    db_exists_before = Path(DB_PATH).exists() if DB_PATH != ":memory:" else False
-    _log.info("database_storage_initialization", db_path=db_resolved_path, exists=db_exists_before)
+    _log.info("database_storage_initialization", db_path=db_resolved_path)
+
     engine = LiveMarketDataIngestionEngine(db_path=DB_PATH)
+    master_engine = MasterSystemIntegrationEngine(db_path=DB_PATH)
+    broadcaster = TelemetryBroadcaster(master_engine=master_engine)
+
     await engine.start()
 
-    # 2. Register tick callback pipeline wrapper (Engine pipeline + Browser WebSocket broadcast)
+    # 2. Register tick callback pipeline wrapper
     engine.ws_manager.set_on_tick_callback(on_tick_pipeline_wrapper)
 
     # 3. Connect Feed & Subscribe All Symbols
@@ -88,10 +116,20 @@ async def lifespan(app: FastAPI):
 
     # 4. Initialize REST Handlers
     market_handler = MarketDataRESTHandler(engine=engine)
-
     repo = DashboardReadOnlyRepositoryAdapter(DB_PATH)
     collector = SystemTelemetryCollector()
     dashboard_handler = DashboardRESTHandler(repo=repo, collector=collector)
+
+    # 5. Include Subsystem Routers
+    ws_db_conn = init_workspace_db(DB_PATH)
+    workspace_repo = SQLiteWorkspaceRepository(ws_db_conn)
+
+    app.include_router(create_telemetry_router(broadcaster))
+    app.include_router(create_validation_router(master_engine))
+    app.include_router(create_research_router(master_engine.ai_reasoning_engine))
+    app.include_router(create_workspace_router(workspace_repo))
+
+    _log.info("all_subsystem_routers_mounted_successfully")
 
     yield
 
@@ -99,13 +137,15 @@ async def lifespan(app: FastAPI):
     _log.info("stopping_goat_production_server")
     if engine:
         await engine.stop()
+    if master_engine:
+        master_engine.close()
     _log.info("goat_production_server_stopped")
 
 
 app = FastAPI(
-    title="Project GOAT — Institutional Trading Platform API",
-    description="Live Deriv Market Data Ingestion & Institutional Dashboard API",
-    version="1.1.0",
+    title="Project GOAT — Institutional Quantitative Research Platform API",
+    description="Live Deriv Ingestion, Master Integration Engine, Telemetry Stream, & Research Workspace API",
+    version="1.2.0",
     lifespan=lifespan,
 )
 
@@ -138,12 +178,13 @@ def _to_json_response(payload: Any) -> JSONResponse:
 @app.get("/")
 def get_root():
     return {
-        "name": "Project GOAT — Institutional Trading Platform API",
+        "name": "Project GOAT — Institutional Quantitative Research Platform API",
         "status": "RUNNING",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "docs": "/docs",
         "health": "/health",
         "api_health": "/api/v1/health",
+        "telemetry_ws": "/ws/telemetry",
     }
 
 
@@ -153,7 +194,7 @@ def get_health():
     if dashboard_handler:
         res = dashboard_handler.get_health()
         return res.model_dump()
-    return {"status": "RUNNING", "backend": "v1.1.0"}
+    return {"status": "RUNNING", "backend": "v1.2.0"}
 
 
 @app.get("/api/v1/summary")
@@ -293,7 +334,6 @@ async def websocket_stream_endpoint(websocket: WebSocket):
 
     try:
         while True:
-            # Keep connection alive & await client messages if any
             await websocket.receive_text()
     except WebSocketDisconnect:
         connected_websockets.discard(websocket)

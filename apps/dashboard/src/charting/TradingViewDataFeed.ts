@@ -1,11 +1,14 @@
 /**
- * Project GOAT v1.1 — Official TradingView JS DataFeed API Specification Implementation
- * Step 1.6 Institutional TradingView Charting Engine
+ * Project GOAT v1.1 — Production TradingView DataFeed API Implementation
+ * TradingView Candlestick Production Audit — Complete Rewrite
  *
- * ABSOLUTE ARCHITECTURAL RULE:
- * TradingView DataFeed MUST NEVER communicate directly with Deriv or use fake mock data.
- * It consumes market data EXCLUSIVELY from GOAT Market Data REST API & WebSocket endpoints.
- * Zero Math.random() or generated fallback data exists.
+ * ARCHITECTURAL RULES:
+ * 1. TradingView DataFeed MUST NEVER communicate directly with Deriv.
+ * 2. It consumes market data EXCLUSIVELY from GOAT Market Data REST API & WebSocket.
+ * 3. Zero Math.random() or generated fallback data.
+ * 4. Single WebSocket connection shared across all subscribers.
+ * 5. Proper OHLC bar construction in DataFeed layer (not React state).
+ * 6. Correct getBars() pagination with from/to range filtering.
  */
 
 import { SymbolManager } from './SymbolManager';
@@ -54,10 +57,10 @@ export interface TimescaleMark {
   tooltip: string[];
 }
 
-type OnReadyCallback = (configurationData: any) => void;
-type SearchSymbolsCallback = (items: any[]) => void;
+type OnReadyCallback = (configurationData: object) => void;
+type SearchSymbolsCallback = (items: object[]) => void;
 type ResolveSymbolCallback = (symbolInfo: LibrarySymbolInfo) => void;
-type HistoryCallback = (bars: BarData[], meta: { noData: boolean }) => void;
+type HistoryCallback = (bars: BarData[], meta: { noData: boolean; nextTime?: number }) => void;
 type RealtimeCallback = (bar: BarData) => void;
 type ErrorCallback = (reason: string) => void;
 type GetMarksCallback = (marks: Mark[]) => void;
@@ -72,8 +75,21 @@ const DERIV_TO_GOAT_SYMBOL_MAP: Record<string, string> = {
   R_75: 'VOLATILITY_75',
   R_100: 'VOLATILITY_100',
   BOOM1000: 'BOOM_1000',
+  BOOM500: 'BOOM_500',
   CRASH1000: 'CRASH_1000',
+  CRASH500: 'CRASH_500',
   stpRNG: 'STEP_INDEX',
+  STEP: 'STEP_INDEX',
+  JUMP10: 'JUMP_10',
+  JUMP25: 'JUMP_25',
+  JUMP50: 'JUMP_50',
+  JUMP75: 'JUMP_75',
+  JUMP100: 'JUMP_100',
+  JD10: 'JUMP_10',
+  JD25: 'JUMP_25',
+  JD50: 'JUMP_50',
+  JD75: 'JUMP_75',
+  JD100: 'JUMP_100',
 };
 
 function normalizeSymbol(sym: string): string {
@@ -87,20 +103,77 @@ function getIntervalSeconds(goatTf: string): number {
   return cfg ? cfg.seconds : 60;
 }
 
-export class TradingViewDataFeed {
-  private subscribers: Map<string, { symbol: string; resolution: string; callback: RealtimeCallback }> = new Map();
-  private timerId: any = null;
-  private ws: WebSocket | null = null;
+/**
+ * Subscriber tracking for realtime bar updates.
+ */
+interface SubscriberEntry {
+  symbol: string;
+  resolution: string;
+  goatTimeframe: string;
+  intervalSeconds: number;
+  callback: RealtimeCallback;
+  resetCacheCallback: () => void;
+  /** Last bar dispatched to this subscriber for OHLC aggregation */
+  lastBar: BarData | null;
+}
 
-  constructor() {
-    console.log('[TradingViewDataFeed] DataFeed initialized. Starting realtime background streams.');
-    this.startRealtimePolling();
-    this.initBackendWebSocket();
+/**
+ * Singleton TradingView DataFeed.
+ * One instance shared across all chart panels.
+ */
+export class TradingViewDataFeed {
+  private static _instance: TradingViewDataFeed | null = null;
+
+  private subscribers: Map<string, SubscriberEntry> = new Map();
+  private ws: WebSocket | null = null;
+  private wsConnected: boolean = false;
+  private pollingTimerId: ReturnType<typeof setInterval> | null = null;
+  private pollFallbackActive: boolean = false;
+  private _destroyed: boolean = false;
+
+  /**
+   * Returns the singleton DataFeed instance.
+   */
+  static getInstance(): TradingViewDataFeed {
+    if (!TradingViewDataFeed._instance || TradingViewDataFeed._instance._destroyed) {
+      TradingViewDataFeed._instance = new TradingViewDataFeed();
+    }
+    return TradingViewDataFeed._instance;
+  }
+
+  private constructor() {
+    console.log('[TradingViewDataFeed] Singleton DataFeed initialized.');
   }
 
   /**
-   * 1. onReady — Returns DataFeed capabilities
+   * Destroy the DataFeed instance, cleaning up all connections and timers.
    */
+  destroy(): void {
+    this._destroyed = true;
+    this.subscribers.clear();
+
+    if (this.pollingTimerId !== null) {
+      clearInterval(this.pollingTimerId);
+      this.pollingTimerId = null;
+    }
+
+    if (this.ws) {
+      try {
+        this.ws.close();
+      } catch {
+        // Ignore close errors
+      }
+      this.ws = null;
+    }
+
+    this.wsConnected = false;
+    TradingViewDataFeed._instance = null;
+    console.log('[TradingViewDataFeed] DataFeed destroyed.');
+  }
+
+  // =====================================================================
+  // 1. onReady — Returns DataFeed capabilities
+  // =====================================================================
   onReady(callback: OnReadyCallback): void {
     console.log('[TradingViewDataFeed] onReady called');
     setTimeout(() => {
@@ -110,14 +183,14 @@ export class TradingViewDataFeed {
         supports_marks: true,
         supports_timescale_marks: true,
         supports_time: true,
-        supported_resolutions: ['1', '5', '15', '30', '60', '240', 'D'],
+        supported_resolutions: ['1', '5', '15', '30', '60', '240', '1D'],
       });
     }, 0);
   }
 
-  /**
-   * 2. searchSymbols — Searches supported GOAT synthetic instruments
-   */
+  // =====================================================================
+  // 2. searchSymbols — Searches supported GOAT synthetic instruments
+  // =====================================================================
   searchSymbols(userInput: string, _exchange: string, _symbolType: string, onResultReadyCallback: SearchSymbolsCallback): void {
     const all = SymbolManager.getAllSymbols();
     const query = userInput.toUpperCase();
@@ -133,9 +206,9 @@ export class TradingViewDataFeed {
     onResultReadyCallback(filtered);
   }
 
-  /**
-   * 3. resolveSymbol — Resolves symbol metadata
-   */
+  // =====================================================================
+  // 3. resolveSymbol — Resolves symbol metadata with correct precision
+  // =====================================================================
   resolveSymbol(symbolName: string, onSymbolResolvedCallback: ResolveSymbolCallback, _onErrorCallback: ErrorCallback): void {
     console.log('[TradingViewDataFeed] resolveSymbol:', symbolName);
     const meta = SymbolManager.getSymbolMetadata(symbolName);
@@ -157,21 +230,24 @@ export class TradingViewDataFeed {
     setTimeout(() => onSymbolResolvedCallback(symbolInfo), 0);
   }
 
-  /**
-   * 4. getBars — Fetches historical OHLCV bars EXCLUSIVELY from GOAT REST API
-   */
+  // =====================================================================
+  // 4. getBars — Fetches historical OHLCV bars with proper pagination
+  // =====================================================================
   async getBars(
     symbolInfo: LibrarySymbolInfo,
     resolution: string,
-    _periodParams: { from: number; to: number; firstDataRequest: boolean },
+    periodParams: { from: number; to: number; firstDataRequest: boolean; countBack?: number },
     onHistoryCallback: HistoryCallback,
     _onErrorCallback: ErrorCallback
   ): Promise<void> {
     const symbolId = symbolInfo.name;
     const goatTf = TimeframeManager.resolutionToGoatTimeframe(resolution);
-    const url = `/api/v1/market-data/candles/history/${symbolId}?timeframe=${goatTf}&limit=300`;
 
-    console.log('[TradingViewDataFeed] getBars requesting history:', { symbol: symbolId, resolution, goatTf, url });
+    // Request limit: use countBack if available, otherwise default to 300
+    const limit = periodParams.countBack || 300;
+    const url = `/api/v1/market-data/candles/history/${symbolId}?timeframe=${goatTf}&limit=${limit}`;
+
+    console.log('[TradingViewDataFeed] getBars:', { symbol: symbolId, resolution, goatTf, from: periodParams.from, to: periodParams.to, limit });
 
     try {
       const res = await fetch(url);
@@ -183,78 +259,128 @@ export class TradingViewDataFeed {
       const json = await res.json();
       const rawCandles = json.data?.candles || json.candles || [];
 
-      console.log('[TradingViewDataFeed] getBars received raw candles:', rawCandles.length);
-
       if (rawCandles.length === 0) {
         onHistoryCallback([], { noData: true });
         return;
       }
 
-      const bars: BarData[] = rawCandles.map((c: any) => ({
-        time: new Date(c.open_timestamp).getTime(),
+      // Convert backend candle format to BarData
+      const allBars: BarData[] = rawCandles.map((c: Record<string, unknown>) => ({
+        time: new Date(c.open_timestamp as string).getTime(),
         open: Number(c.open),
         high: Number(c.high),
         low: Number(c.low),
         close: Number(c.close),
-        volume: Number(c.volume || 1),
+        volume: Number(c.volume || 0),
       }));
 
-      // Debug comparison of raw API payload vs mapped bar
-      console.log('[TradingViewDataFeed] DEBUG: Raw API Candle vs Chart Mapped Bar comparison:', {
-        rawSample: {
-          open_timestamp: rawCandles[0].open_timestamp,
-          open: rawCandles[0].open,
-          high: rawCandles[0].high,
-          low: rawCandles[0].low,
-          close: rawCandles[0].close,
-          volume: rawCandles[0].volume,
-        },
-        mappedSample: bars[0],
+      // Sort ascending by time (critical for TradingView)
+      allBars.sort((a, b) => a.time - b.time);
+
+      // Deduplicate by timestamp
+      const seen = new Set<number>();
+      const dedupedBars: BarData[] = [];
+      for (const bar of allBars) {
+        if (!seen.has(bar.time)) {
+          seen.add(bar.time);
+          dedupedBars.push(bar);
+        }
+      }
+
+      // Validate OHLC integrity — skip impossible candles
+      const validBars = dedupedBars.filter((bar) => {
+        if (bar.high < bar.low) return false;
+        if (bar.open > bar.high || bar.open < bar.low) return false;
+        if (bar.close > bar.high || bar.close < bar.low) return false;
+        if (bar.open <= 0 || bar.high <= 0 || bar.low <= 0 || bar.close <= 0) return false;
+        return true;
       });
 
-      // Always return all historical candles (up to 300) without truncating period bounds
-      console.log('[TradingViewDataFeed] getBars returning full historical bars count:', bars.length, {
-        firstBar: bars[0],
-        lastBar: bars[bars.length - 1],
-      });
+      // Filter by requested time range (from/to are in seconds, bar.time is in ms)
+      const fromMs = periodParams.from * 1000;
+      const toMs = periodParams.to * 1000;
+      const filteredBars = validBars.filter((bar) => bar.time >= fromMs && bar.time <= toMs);
 
-      onHistoryCallback(bars, { noData: false });
+      // If no bars in range, signal noData with nextTime hint for scrollback
+      if (filteredBars.length === 0) {
+        if (validBars.length > 0) {
+          // Give TradingView a hint about where earlier data exists
+          const earliestBar = validBars[0];
+          onHistoryCallback([], { noData: true, nextTime: Math.floor(earliestBar.time / 1000) });
+        } else {
+          onHistoryCallback([], { noData: true });
+        }
+        return;
+      }
+
+      // Seed matching active subscribers' lastBar with the latest historical bar
+      if (validBars.length > 0) {
+        const latestHistBar = validBars[validBars.length - 1];
+        const normSym = normalizeSymbol(symbolId);
+        for (const [, sub] of this.subscribers.entries()) {
+          if (normalizeSymbol(sub.symbol) === normSym && sub.resolution === resolution) {
+            if (!sub.lastBar || latestHistBar.time >= sub.lastBar.time) {
+              sub.lastBar = { ...latestHistBar };
+            }
+          }
+        }
+      }
+
+      console.log('[TradingViewDataFeed] getBars returning:', filteredBars.length, 'bars');
+      onHistoryCallback(filteredBars, { noData: false });
     } catch (err) {
       console.error('[TradingViewDataFeed] getBars fetch exception:', err);
-      // Zero fake data — Return noData if backend request fails
       onHistoryCallback([], { noData: true });
     }
   }
 
-  /**
-   * 5. subscribeBars — Subscribes to realtime updates
-   */
+  // =====================================================================
+  // 5. subscribeBars — Subscribes to realtime updates with proper OHLC
+  // =====================================================================
   subscribeBars(
     symbolInfo: LibrarySymbolInfo,
     resolution: string,
     onRealtimeCallback: RealtimeCallback,
     subscriberUID: string,
-    _onResetCacheNeededCallback: () => void
+    onResetCacheNeededCallback: () => void
   ): void {
-    console.log('[TradingViewDataFeed] subscribeBars:', { subscriberUID, symbol: symbolInfo.name, resolution });
+    const goatTf = TimeframeManager.resolutionToGoatTimeframe(resolution);
+    const intervalSec = getIntervalSeconds(goatTf);
+
+    console.log('[TradingViewDataFeed] subscribeBars:', { subscriberUID, symbol: symbolInfo.name, resolution, goatTf });
+
     this.subscribers.set(subscriberUID, {
       symbol: symbolInfo.name,
       resolution: resolution,
+      goatTimeframe: goatTf,
+      intervalSeconds: intervalSec,
       callback: onRealtimeCallback,
+      resetCacheCallback: onResetCacheNeededCallback,
+      lastBar: null,
     });
+
+    // Ensure realtime connection is active when we have subscribers
+    this.ensureRealtimeConnection();
   }
 
-  /**
-   * 6. unsubscribeBars — Unsubscribes from realtime updates
-   */
+  // =====================================================================
+  // 6. unsubscribeBars — Unsubscribes from realtime updates
+  // =====================================================================
   unsubscribeBars(subscriberUID: string): void {
     console.log('[TradingViewDataFeed] unsubscribeBars:', subscriberUID);
     this.subscribers.delete(subscriberUID);
+
+    // If no subscribers remain, we can stop polling (WS stays for reconnect)
+    if (this.subscribers.size === 0 && this.pollingTimerId !== null) {
+      clearInterval(this.pollingTimerId);
+      this.pollingTimerId = null;
+      this.pollFallbackActive = false;
+    }
   }
 
-  /**
-   * 7. calculateHistoryDepth — Calculates historical bar request depth
-   */
+  // =====================================================================
+  // 7. calculateHistoryDepth — Backward compatibility (deprecated in v2)
+  // =====================================================================
   calculateHistoryDepth(resolution: string, _resolutionBack: string, _intervalBack: number): { resolutionBack: string; intervalBack: number } | undefined {
     if (resolution === '1' || resolution === '5') {
       return { resolutionBack: 'D', intervalBack: 3 };
@@ -262,9 +388,9 @@ export class TradingViewDataFeed {
     return { resolutionBack: 'M', intervalBack: 1 };
   }
 
-  /**
-   * 8. getMarks — Returns research marks
-   */
+  // =====================================================================
+  // 8. getMarks — Returns research marks
+  // =====================================================================
   getMarks(_symbolInfo: LibrarySymbolInfo, _startDate: number, _endDate: number, onDataCallback: GetMarksCallback, _resolution: string): void {
     setTimeout(() => {
       onDataCallback([
@@ -281,9 +407,9 @@ export class TradingViewDataFeed {
     }, 0);
   }
 
-  /**
-   * 9. getTimescaleMarks — Returns timescale marks
-   */
+  // =====================================================================
+  // 9. getTimescaleMarks — Returns timescale marks
+  // =====================================================================
   getTimescaleMarks(_symbolInfo: LibrarySymbolInfo, _startDate: number, _endDate: number, onDataCallback: GetTimescaleMarksCallback, _resolution: string): void {
     setTimeout(() => {
       onDataCallback([
@@ -298,24 +424,159 @@ export class TradingViewDataFeed {
     }, 0);
   }
 
-  /**
-   * 10. getServerTime — Returns UTC server timestamp
-   */
+  // =====================================================================
+  // 10. getServerTime — Returns UTC server timestamp
+  // =====================================================================
   getServerTime(callback: GetServerTimeCallback): void {
     setTimeout(() => {
       callback(Math.floor(Date.now() / 1000));
     }, 0);
   }
 
-  private startRealtimePolling(): void {
-    if (this.timerId) return;
-    this.timerId = setInterval(async () => {
-      if (this.subscribers.size === 0) return;
+  // =====================================================================
+  // PRIVATE: Realtime Connection Management
+  // =====================================================================
 
-      for (const [_, sub] of this.subscribers.entries()) {
+  /**
+   * Ensure exactly one realtime connection is active.
+   * Primary: WebSocket. Fallback: HTTP polling (only if WS fails).
+   */
+  private ensureRealtimeConnection(): void {
+    if (this._destroyed) return;
+
+    // Try WebSocket first
+    if (!this.ws || this.ws.readyState === WebSocket.CLOSED || this.ws.readyState === WebSocket.CLOSING) {
+      this.initWebSocket();
+    }
+  }
+
+  /**
+   * Initialize single WebSocket connection to backend gateway.
+   */
+  private initWebSocket(): void {
+    if (this._destroyed || typeof window === 'undefined') return;
+
+    try {
+      let wsUrl: string;
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        wsUrl = `${protocol}//${window.location.host}/api/v1/market-data/ws`;
+      } else {
+        wsUrl = 'wss://project-goat-production.up.railway.app/api/v1/market-data/ws';
+      }
+
+      console.log('[TradingViewDataFeed] Connecting WebSocket:', wsUrl);
+      this.ws = new WebSocket(wsUrl);
+
+      this.ws.onopen = () => {
+        console.log('[TradingViewDataFeed] WebSocket connected');
+        this.wsConnected = true;
+
+        // Stop HTTP polling fallback if WS is now connected
+        if (this.pollingTimerId !== null) {
+          clearInterval(this.pollingTimerId);
+          this.pollingTimerId = null;
+          this.pollFallbackActive = false;
+          console.log('[TradingViewDataFeed] Stopped HTTP polling fallback (WS active)');
+        }
+      };
+
+      this.ws.onerror = () => {
+        console.warn('[TradingViewDataFeed] WebSocket error');
+        this.wsConnected = false;
+        this.startPollingFallback();
+      };
+
+      this.ws.onclose = () => {
+        console.log('[TradingViewDataFeed] WebSocket closed');
+        this.wsConnected = false;
+        // Start polling fallback if we still have subscribers
+        if (this.subscribers.size > 0 && !this._destroyed) {
+          this.startPollingFallback();
+        }
+      };
+
+      this.ws.onmessage = (event) => {
+        this.handleWebSocketMessage(event);
+      };
+    } catch (err) {
+      console.warn('[TradingViewDataFeed] WebSocket init exception:', err);
+      this.wsConnected = false;
+      this.startPollingFallback();
+    }
+  }
+
+  /**
+   * Process WebSocket tick message and build proper OHLC bars.
+   */
+  private handleWebSocketMessage(event: MessageEvent): void {
+    try {
+      const payload = JSON.parse(event.data);
+      const rawTick = payload.tick || payload;
+      const rawSymbol = rawTick.symbol;
+      const price = Number(rawTick.price || rawTick.quote);
+      const epochSec = rawTick.epoch ? Number(rawTick.epoch) : Math.floor(Date.now() / 1000);
+
+      if (!rawSymbol || isNaN(price) || price <= 0) return;
+
+      const normalizedSym = normalizeSymbol(rawSymbol);
+
+      // Dispatch to matching subscribers with proper OHLC construction
+      for (const [, sub] of this.subscribers.entries()) {
+        const subSymNormalized = normalizeSymbol(sub.symbol);
+        if (subSymNormalized !== normalizedSym) continue;
+
+        // Floor tick time to interval boundary
+        const barTimeMs = Math.floor(epochSec / sub.intervalSeconds) * sub.intervalSeconds * 1000;
+
+        const lastBar = sub.lastBar;
+
+        if (lastBar && lastBar.time === barTimeMs) {
+          // Same interval — update forming candle
+          const updatedBar: BarData = {
+            time: barTimeMs,
+            open: lastBar.open,
+            high: Math.max(lastBar.high, price),
+            low: Math.min(lastBar.low, price),
+            close: price,
+            volume: lastBar.volume + 1,
+          };
+          sub.lastBar = updatedBar;
+          sub.callback(updatedBar);
+        } else if (!lastBar || barTimeMs > lastBar.time) {
+          // New interval — create new bar
+          const newBar: BarData = {
+            time: barTimeMs,
+            open: price,
+            high: price,
+            low: price,
+            close: price,
+            volume: 1,
+          };
+          sub.lastBar = newBar;
+          sub.callback(newBar);
+        }
+        // Ignore ticks with barTimeMs < lastBar.time (stale/out-of-order)
+      }
+    } catch {
+      // Non-JSON or malformed frame — silently ignore
+    }
+  }
+
+  /**
+   * HTTP polling fallback — only activated when WebSocket is unavailable.
+   */
+  private startPollingFallback(): void {
+    if (this._destroyed || this.pollFallbackActive) return;
+    this.pollFallbackActive = true;
+
+    console.log('[TradingViewDataFeed] Starting HTTP polling fallback');
+    this.pollingTimerId = setInterval(async () => {
+      if (this.subscribers.size === 0 || this.wsConnected) return;
+
+      for (const [, sub] of this.subscribers.entries()) {
         try {
-          const goatTf = TimeframeManager.resolutionToGoatTimeframe(sub.resolution);
-          const url = `/api/v1/market-data/candles/latest/${sub.symbol}?timeframe=${goatTf}`;
+          const url = `/api/v1/market-data/candles/latest/${sub.symbol}?timeframe=${sub.goatTimeframe}`;
           const res = await fetch(url);
           if (res.ok) {
             const json = await res.json();
@@ -327,79 +588,19 @@ export class TradingViewDataFeed {
                 high: Number(c.high),
                 low: Number(c.low),
                 close: Number(c.close),
-                volume: Number(c.volume || 1),
+                volume: Number(c.volume || 0),
               };
-              sub.callback(bar);
+              // Only dispatch if bar is valid
+              if (bar.open > 0 && bar.high >= bar.low && bar.close > 0) {
+                sub.lastBar = bar;
+                sub.callback(bar);
+              }
             }
           }
-        } catch (err) {
-          // Ignore offline polling errors cleanly
+        } catch {
+          // Ignore offline polling errors
         }
       }
-    }, 1500);
-  }
-
-  private initBackendWebSocket(): void {
-    if (typeof window === 'undefined') return;
-    try {
-      let wsUrl: string;
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        wsUrl = `${protocol}//${window.location.host}/api/v1/market-data/ws`;
-      } else {
-        wsUrl = 'wss://project-goat-production.up.railway.app/api/v1/market-data/ws';
-      }
-
-      console.log('[TradingViewDataFeed] Initializing WebSocket gateway connection to:', wsUrl);
-      this.ws = new WebSocket(wsUrl);
-
-      this.ws.onopen = () => {
-        console.log('[TradingViewDataFeed] WebSocket connected cleanly to Railway backend gateway');
-      };
-
-      this.ws.onerror = (err) => {
-        console.warn('[TradingViewDataFeed] WebSocket connection error:', err);
-      };
-
-      this.ws.onclose = () => {
-        console.log('[TradingViewDataFeed] WebSocket connection closed');
-      };
-
-      this.ws.onmessage = (event) => {
-        try {
-          const payload = JSON.parse(event.data);
-          const rawTick = payload.tick || payload;
-          const rawSymbol = rawTick.symbol;
-          const price = Number(rawTick.price || rawTick.quote);
-          const epochSec = rawTick.epoch ? Number(rawTick.epoch) : Math.floor(Date.now() / 1000);
-
-          if (!rawSymbol || isNaN(price)) return;
-
-          const normalizedSym = normalizeSymbol(rawSymbol);
-
-          // Dispatch tick to subscribers following OHLC timeframe interval flooring rules
-          for (const [_, sub] of this.subscribers.entries()) {
-            const subSymNormalized = normalizeSymbol(sub.symbol);
-            if (subSymNormalized === normalizedSym) {
-              const goatTf = TimeframeManager.resolutionToGoatTimeframe(sub.resolution);
-              const intervalSec = getIntervalSeconds(goatTf);
-              const barTimeMs = Math.floor(epochSec / intervalSec) * intervalSec * 1000;
-
-              const tickUpdate: any = {
-                symbol: sub.symbol,
-                time: barTimeMs,
-                price: price,
-              };
-
-              sub.callback(tickUpdate as any);
-            }
-          }
-        } catch (err) {
-          // Non-JSON or malformed frame ignored
-        }
-      };
-    } catch (err) {
-      console.warn('[TradingViewDataFeed] Exception initializing WebSocket:', err);
-    }
+    }, 2000);
   }
 }

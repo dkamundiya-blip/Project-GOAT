@@ -1,18 +1,18 @@
 /**
- * Project GOAT v1.0 — Institutional TradingView Lightweight Charts Renderer
- * Stage 1 Architecture Stabilization & Lightweight Charts Migration
+ * Project GOAT v1.1 — Institutional TradingView Lightweight Charts Renderer
+ * TradingView Candlestick Production Audit — Simplified Architecture
  *
- * Refactored TradingViewWidget wrapping ChartContainer:
- * - Uses production-grade TradingView Lightweight Charts
- * - Connects to existing TradingViewDataFeed REST & WebSocket stream
- * - Zero custom 2D canvas drawing code
- * - Preserves all props & callbacks for 100% backward compatibility
+ * Fixes applied:
+ * - Uses shared DataFeed singleton (no per-panel DataFeed instances)
+ * - Removes React-state OHLC aggregation (moved to DataFeed layer)
+ * - Clean separation: initial historical load → streaming subscription
+ * - Proper cleanup on unmount / symbol / timeframe change
  */
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { SymbolManager } from './SymbolManager';
 import { TimeframeManager } from './TimeframeManager';
-import { TradingViewDataFeed, BarData } from './TradingViewDataFeed';
+import { TradingViewDataFeed, BarData, LibrarySymbolInfo } from './TradingViewDataFeed';
 import { ChartStyleType, CrosshairModeType, ThemeType } from './ChartState';
 import { DrawingToolType } from './DrawingManager';
 import { ChartContainer } from './ChartContainer';
@@ -52,15 +52,13 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
   onCrosshairMove,
 }) => {
   const [bars, setBars] = useState<BarData[]>([]);
-  const datafeedRef = useRef<TradingViewDataFeed>(new TradingViewDataFeed());
+  const barsRef = useRef<BarData[]>([]);
+  const subscriberIdRef = useRef<string>('');
 
-  // Load historical bars & subscribe live streaming updates
-  useEffect(() => {
-    let isSubscribed = true;
-    setBars([]);
-
-    const meta = SymbolManager.getSymbolMetadata(symbol);
-    const symbolInfo: any = {
+  // Build symbolInfo from metadata — memoized by symbol
+  const buildSymbolInfo = useCallback((sym: string): LibrarySymbolInfo => {
+    const meta = SymbolManager.getSymbolMetadata(sym);
+    return {
       name: meta.symbol,
       ticker: meta.symbol,
       description: meta.name,
@@ -75,100 +73,86 @@ export const TradingViewWidget: React.FC<TradingViewWidgetProps> = ({
       volume_precision: 2,
       data_status: 'streaming',
     };
+  }, []);
 
+  // Load historical bars & subscribe live streaming updates
+  useEffect(() => {
+    let isSubscribed = true;
+    const datafeed = TradingViewDataFeed.getInstance();
+    const symbolInfo = buildSymbolInfo(symbol);
     const resolution = TimeframeManager.goatTimeframeToResolution(timeframe);
+    const subId = `sub_${panelId}_${symbol}_${resolution}`;
+    subscriberIdRef.current = subId;
 
-    // 1. Fetch REST History
-    datafeedRef.current.getBars(
+    // Reset bars state on symbol/timeframe change
+    setBars([]);
+    barsRef.current = [];
+
+    // 1. Fetch historical bars from REST API
+    datafeed.getBars(
       symbolInfo,
       resolution,
       { from: 0, to: Math.floor(Date.now() / 1000), firstDataRequest: true },
       (fetchedBars) => {
-        if (isSubscribed) {
-          setBars(fetchedBars);
-        }
+        if (!isSubscribed) return;
+        barsRef.current = fetchedBars;
+        setBars([...fetchedBars]);
       },
       () => {}
     );
 
-    // 2. Subscribe to WebSocket Live Ticks & Aggregate OHLC
-    datafeedRef.current.subscribeBars(
+    // 2. Subscribe to realtime bar updates (DataFeed now provides full OHLC bars)
+    datafeed.subscribeBars(
       symbolInfo,
       resolution,
-      (update: any) => {
+      (bar: BarData) => {
         if (!isSubscribed) return;
-        setBars((prev) => {
-          // Full BarData update (REST fallback)
-          if (typeof update.open === 'number' && typeof update.close === 'number') {
-            const fullBar = update as BarData;
-            if (prev.length === 0) return [fullBar];
-            const last = prev[prev.length - 1];
-            if (last.time === fullBar.time) {
-              const updated = [...prev];
-              updated[updated.length - 1] = fullBar;
-              return updated;
-            } else if (fullBar.time > last.time) {
-              return [...prev, fullBar];
-            }
-            return prev;
-          }
 
-          // Live tick frame { symbol, time, price }
-          const tickPrice = Number(update.price);
-          const tickTime = Number(update.time);
-          if (isNaN(tickPrice) || isNaN(tickTime)) return prev;
+        const prev = barsRef.current;
+        if (prev.length === 0) {
+          barsRef.current = [bar];
+          setBars([bar]);
+          return;
+        }
 
-          if (prev.length === 0) {
-            return [
-              {
-                time: tickTime,
-                open: tickPrice,
-                high: tickPrice,
-                low: tickPrice,
-                close: tickPrice,
-                volume: 1,
-              },
-            ];
-          }
+        const lastIdx = prev.length - 1;
+        const lastBar = prev[lastIdx];
 
-          const last = prev[prev.length - 1];
-          if (last.time === tickTime) {
-            // Same interval -> Mutate final candle OHLC
-            const updatedLast: BarData = {
-              time: last.time,
-              open: last.open,
-              high: Math.max(last.high, tickPrice),
-              low: Math.min(last.low, tickPrice),
-              close: tickPrice,
-              volume: last.volume + 1,
-            };
-            const updated = [...prev];
-            updated[updated.length - 1] = updatedLast;
-            return updated;
-          } else if (tickTime > last.time) {
-            // New timeframe interval -> Append forming candle
-            const newBar: BarData = {
-              time: tickTime,
-              open: tickPrice,
-              high: tickPrice,
-              low: tickPrice,
-              close: tickPrice,
-              volume: 1,
-            };
-            return [...prev, newBar];
-          }
-          return prev;
-        });
+        if (lastBar.time === bar.time) {
+          // Merge tick update into existing forming bar (preserve historical open & expand high/low bounds)
+          const mergedBar: BarData = {
+            time: lastBar.time,
+            open: lastBar.open,
+            high: Math.max(lastBar.high, bar.high),
+            low: Math.min(lastBar.low, bar.low),
+            close: bar.close,
+            volume: Math.max(lastBar.volume, bar.volume),
+          };
+          prev[lastIdx] = mergedBar;
+          setBars([...prev]);
+        } else if (bar.time > lastBar.time) {
+          // New candle — append
+          prev.push(bar);
+          barsRef.current = prev;
+          setBars([...prev]);
+        }
+        // Ignore stale bars (bar.time < lastBar.time)
       },
-      `sub_${panelId}_${symbol}_${resolution}`,
-      () => {}
+      subId,
+      () => {
+        // Reset cache callback — refetch history
+        if (isSubscribed) {
+          barsRef.current = [];
+          setBars([]);
+        }
+      }
     );
 
     return () => {
       isSubscribed = false;
-      datafeedRef.current.unsubscribeBars(`sub_${panelId}_${symbol}_${resolution}`);
+      datafeed.unsubscribeBars(subId);
     };
-  }, [symbol, timeframe, panelId]);
+  }, [symbol, timeframe, panelId, buildSymbolInfo]);
 
   return (
     <ChartContainer

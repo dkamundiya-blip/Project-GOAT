@@ -24,6 +24,7 @@ from goat.integration.core import (
     serialize_canonical_json,
 )
 from goat.integration.engine import ScientificKnowledgeIntegrationEngine
+from goat.integration.master import MasterSystemIntegrationEngine
 from goat.integration.evidence import EvidenceMergeRecord, EvidenceMerger
 from goat.integration.graph import ScientificKnowledgeGraph
 from goat.integration.persistence import (
@@ -48,6 +49,8 @@ from goat.integration.versioning import (
 )
 
 __all__ = [
+    # Master System Integration
+    "MasterSystemIntegrationEngine",
     # Core Models & Enums
     "KnowledgeNodeType",
     "KnowledgeRelationship",

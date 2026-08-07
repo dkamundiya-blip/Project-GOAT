@@ -19,7 +19,7 @@ export interface TradingViewContextValue {
 const TradingViewContext = createContext<TradingViewContextValue | null>(null);
 
 export const TradingViewProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [datafeed] = useState<TradingViewDataFeed>(new TradingViewDataFeed());
+  const [datafeed] = useState<TradingViewDataFeed>(() => TradingViewDataFeed.getInstance());
   const [drawingManager] = useState<DrawingManager>(new DrawingManager());
   const [activeSymbol, setActiveSymbol] = useState<string>('VOLATILITY_100');
   const [activeTimeframe, setActiveTimeframe] = useState<string>('1M');

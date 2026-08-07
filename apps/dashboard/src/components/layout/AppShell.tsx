@@ -13,12 +13,20 @@ import { GlobalSearchModal } from '../widgets/GlobalSearchModal';
 import { EntityInspectorModal } from '../widgets/EntityInspectorModal';
 import { ThemeProvider } from '../../theme/ThemeContext';
 
+import { CommandPalette } from './CommandPalette';
+import { useTelemetryStore } from '../../stores/telemetryStore';
+
 interface AppShellProps {
   children: React.ReactNode;
 }
 
 export const AppShellContent: React.FC<AppShellProps> = ({ children }) => {
   const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
+  const connectTelemetry = useTelemetryStore((s) => s.connect);
+
+  React.useEffect(() => {
+    connectTelemetry();
+  }, [connectTelemetry]);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#06090e] text-slate-100 font-sans overflow-hidden">
@@ -51,6 +59,7 @@ export const AppShellContent: React.FC<AppShellProps> = ({ children }) => {
       {/* Modals & Inspectors */}
       <GlobalSearchModal />
       <EntityInspectorModal />
+      <CommandPalette />
     </div>
   );
 };
