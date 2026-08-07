@@ -141,7 +141,7 @@ class TelemetryBroadcaster:
 
 
 def create_telemetry_router(broadcaster: TelemetryBroadcaster) -> Any:
-    """Create FastAPI router for WebSocket telemetry endpoints."""
+    """Create FastAPI router for WebSocket telemetry endpoints with separated outbound/inbound tasks."""
     if not _HAS_FASTAPI:
         raise RuntimeError("FastAPI is required for telemetry WebSocket router.")
 
@@ -151,31 +151,47 @@ def create_telemetry_router(broadcaster: TelemetryBroadcaster) -> Any:
     async def websocket_telemetry_endpoint(websocket: WebSocket):
         await websocket.accept()
         broadcaster.add_connection(websocket)
+        _log.info("CLIENT CONNECTED", client=str(getattr(websocket, "client", "browser")))
 
-        try:
+        async def send_telemetry_loop():
+            """Task A: Continuous outbound telemetry frame publisher."""
             while True:
-                # 1. Publish live engine snapshot frame every 500 ms
                 snapshot = broadcaster.get_telemetry_snapshot()
                 await websocket.send_json(snapshot)
+                _log.debug("FRAME SENT", ticks=snapshot.get("ticks_processed"))
                 await asyncio.sleep(0.5)
 
-                # 2. Check for incoming client commands (e.g., symbol / timeframe switch)
+        async def receive_command_loop():
+            """Task B: Continuous inbound command listener without timeout cancellation."""
+            while True:
+                raw_cmd = await websocket.receive_text()
                 try:
-                    raw_cmd = await asyncio.wait_for(websocket.receive_text(), timeout=0.01)
                     cmd_data = json.loads(raw_cmd)
                     if cmd_data.get("action") == "SWITCH_SYMBOL" and "symbol" in cmd_data:
                         broadcaster.master_engine.switch_symbol(cmd_data["symbol"])
                     elif cmd_data.get("action") == "SWITCH_TIMEFRAME" and "timeframe" in cmd_data:
                         broadcaster.master_engine.switch_timeframe(cmd_data["timeframe"])
-                except asyncio.TimeoutError:
-                    pass
-                except Exception:
-                    pass
+                except Exception as parse_err:
+                    _log.warning("telemetry_ws_command_parse_error", error=str(parse_err))
 
+        send_task = asyncio.create_task(send_telemetry_loop())
+        recv_task = asyncio.create_task(receive_command_loop())
+
+        try:
+            done, pending = await asyncio.wait(
+                [send_task, recv_task],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for task in pending:
+                task.cancel()
         except WebSocketDisconnect:
-            broadcaster.remove_connection(websocket)
+            pass
         except Exception as exc:
             _log.warning("telemetry_ws_exception", error=str(exc))
+        finally:
+            send_task.cancel()
+            recv_task.cancel()
             broadcaster.remove_connection(websocket)
+            _log.info("CLIENT DISCONNECTED", client=str(getattr(websocket, "client", "browser")))
 
     return router
