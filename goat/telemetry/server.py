@@ -76,7 +76,13 @@ class TelemetryBroadcaster:
             tick_rate_val = round(12.0 + (time.time() % 5.0), 1)
 
             # Discovered Edges from live Edge Discovery Engine repository
-            ranked_edges_raw = self.master_engine.edge_discovery_engine.repository.get_top_edges(limit=5)
+            # Note: get_top_edges() performs a SQLite query which may raise
+            # ProgrammingError if called from a different thread than where the
+            # connection was created (common in async/WebSocket contexts).
+            try:
+                ranked_edges_raw = self.master_engine.edge_discovery_engine.repository.get_top_edges(limit=5)
+            except Exception:
+                ranked_edges_raw = []
             edges_list = []
             if ranked_edges_raw:
                 for edg in ranked_edges_raw:
@@ -108,8 +114,15 @@ class TelemetryBroadcaster:
                     }
                 ]
 
-        # Ingest tick dynamically
-        tick_res = self.master_engine.process_tick(price=1000.0 + (time.time() % 10.0))
+        # Compute pipeline latency from existing engine metrics (do NOT call
+        # process_tick here — the live Deriv feed already drives that pipeline
+        # and calling it from this synchronous-in-async context causes crashes
+        # from SQLite concurrency and event-loop blocking).
+        avg_latency = (
+            sum(self.master_engine.last_pipeline_latencies_ms) / len(self.master_engine.last_pipeline_latencies_ms)
+            if self.master_engine.last_pipeline_latencies_ms
+            else 2.38
+        )
 
         return {
             "type": "TELEMETRY_UPDATE",
@@ -120,7 +133,7 @@ class TelemetryBroadcaster:
             "candles_closed": self.master_engine.candles_closed,
             "feature_vectors_generated": self.master_engine.feature_vectors_generated,
             "edges_evaluated": self.master_engine.edges_evaluated,
-            "pipeline_latency_ms": tick_res.get("pipeline_latency_ms", 2.38),
+            "pipeline_latency_ms": round(avg_latency, 3),
             "market_state": {
                 "regime": regime_val,
                 "trend": trend_val,
@@ -151,14 +164,42 @@ def create_telemetry_router(broadcaster: TelemetryBroadcaster) -> Any:
     async def websocket_telemetry_endpoint(websocket: WebSocket):
         await websocket.accept()
         broadcaster.add_connection(websocket)
-        _log.info("CLIENT CONNECTED", client=str(getattr(websocket, "client", "browser")))
+        _log.warning("GOAT_TELEMETRY_PRODUCTION_MARKER_2026_08_14")
+        _log.info("TELEMETRY_WS_CONNECTED", client=str(getattr(websocket, "client", "browser")))
 
         async def send_telemetry_loop():
             """Task A: Continuous outbound telemetry frame publisher."""
             while True:
-                snapshot = broadcaster.get_telemetry_snapshot()
-                await websocket.send_json(snapshot)
-                _log.debug("FRAME SENT", ticks=snapshot.get("ticks_processed"))
+                try:
+                    snapshot = broadcaster.get_telemetry_snapshot()
+                    await websocket.send_json(snapshot)
+                    _log.debug("TELEMETRY_FRAME_SENT", ticks=snapshot.get("ticks_processed"))
+                except WebSocketDisconnect:
+                    _log.info("TELEMETRY_SEND_WS_DISCONNECTED")
+                    return
+                except Exception as exc:
+                    _log.error(
+                        "TELEMETRY_SEND_EXCEPTION",
+                        error=str(exc),
+                        exc_type=type(exc).__name__,
+                    )
+                    # Send a minimal fallback frame so the browser stays alive
+                    try:
+                        await websocket.send_json({
+                            "type": "TELEMETRY_UPDATE",
+                            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                            "ticks_processed": 0,
+                            "candles_closed": 0,
+                            "feature_vectors_generated": 0,
+                            "edges_evaluated": 0,
+                            "pipeline_latency_ms": 0.0,
+                            "market_state": {"regime": "RECOVERING", "trend": "NEUTRAL", "volatility": "NORMAL", "momentum": "NEUTRAL", "liquidity": "NORMAL", "tick_rate": 0.0},
+                            "statistics": {"atr": 0.0, "realized_volatility": 0.0, "rolling_vwap": 0.0, "spread_variance": 0.0},
+                            "edges": [],
+                            "system_health": {"overall_status": "RECOVERING", "components": {}},
+                        })
+                    except Exception:
+                        return  # WebSocket is dead, exit gracefully
                 await asyncio.sleep(0.5)
 
         async def receive_command_loop():
@@ -182,6 +223,15 @@ def create_telemetry_router(broadcaster: TelemetryBroadcaster) -> Any:
                 [send_task, recv_task],
                 return_when=asyncio.FIRST_COMPLETED,
             )
+            # Log which task completed first (reveals crash source)
+            for task in done:
+                if task.exception():
+                    _log.error(
+                        "TELEMETRY_TASK_CRASHED",
+                        task=task.get_name(),
+                        error=str(task.exception()),
+                        exc_type=type(task.exception()).__name__,
+                    )
             for task in pending:
                 task.cancel()
         except WebSocketDisconnect:
@@ -192,6 +242,6 @@ def create_telemetry_router(broadcaster: TelemetryBroadcaster) -> Any:
             send_task.cancel()
             recv_task.cancel()
             broadcaster.remove_connection(websocket)
-            _log.info("CLIENT DISCONNECTED", client=str(getattr(websocket, "client", "browser")))
+            _log.info("TELEMETRY_WS_DISCONNECTED", client=str(getattr(websocket, "client", "browser")))
 
     return router
