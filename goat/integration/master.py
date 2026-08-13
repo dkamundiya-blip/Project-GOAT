@@ -82,6 +82,13 @@ class MasterSystemIntegrationEngine:
             "research_api": {"status": "HEALTHY", "latency_ms": 2.0, "last_update": "", "error_count": 0, "health": 1.0},
         }
 
+        # Per (symbol, timeframe) Observation & Forward Return Buffer State
+        self._pending_observations: dict[tuple[str, str], tuple[FeatureVector, float]] = {}
+        self._observation_fvs: dict[tuple[str, str], list[FeatureVector]] = {}
+        self._observation_returns: dict[tuple[str, str], list[float]] = {}
+        self.min_discovery_samples: int = 15  # Engine execution minimum (N >= 15 discovery may run)
+        self.max_buffer_size: int = 200        # Bounded rolling buffer target (100-200 observations)
+
         # Pipeline Statistics
         self.ticks_processed = 0
         self.candles_closed = 0
@@ -100,9 +107,62 @@ class MasterSystemIntegrationEngine:
             self._latest_state[state.symbol] = state
 
     def _on_candle(self, candle: IntelligenceCandle) -> None:
-        """Callback fired when Universal Candle Builder closes a bar."""
+        """Callback fired when Universal Candle Builder closes a genuine multi-tick bar."""
         with self._lock:
+            sym = candle.symbol.upper()
+            tf_val = candle.timeframe.value.lower()
+
+            # Filter for active monitoring symbol and timeframe
+            if sym != self.symbol or tf_val != self.timeframe:
+                return
+
             self.candles_closed += 1
+            key = (sym, tf_val)
+
+            # 1. Retrieve latest statistics for this symbol
+            latest_stats = self._latest_stats.get(sym)
+
+            # 2. Generate FeatureVector strictly from information available at candle close
+            fv = self.feature_eng_engine.process_candle(candle, current_stats=latest_stats)
+            self.feature_vectors_generated += 1
+
+            # 3. If a prior completed candle exists for this (symbol, timeframe), its forward return is now known:
+            # R_t = (Close_(t+1) - Close_t) / Close_t
+            if key in self._pending_observations:
+                prev_fv, prev_close = self._pending_observations[key]
+                if prev_close > 0.0:
+                    forward_return = (candle.close - prev_close) / prev_close
+
+                    if key not in self._observation_fvs:
+                        self._observation_fvs[key] = []
+                        self._observation_returns[key] = []
+
+                    # Pair R_t ONLY with prev_fv (FV_t)
+                    self._observation_fvs[key].append(prev_fv)
+                    self._observation_returns[key].append(forward_return)
+
+                    # Maintain bounded rolling buffer (100-200 target)
+                    if len(self._observation_returns[key]) > self.max_buffer_size:
+                        self._observation_fvs[key].pop(0)
+                        self._observation_returns[key].pop(0)
+
+            # 4. Store current candle feature vector and close price as pending for the next bar's return
+            self._pending_observations[key] = (fv, candle.close)
+
+            # 5. Run Edge Discovery only when sufficient genuine observations exist (N >= min_discovery_samples)
+            buffered_rets = self._observation_returns.get(key, [])
+            buffered_fvs = self._observation_fvs.get(key, [])
+
+            if len(buffered_rets) >= self.min_discovery_samples:
+                discovered = self.edge_discovery_engine.discover_edges(
+                    symbol=sym,
+                    timeframe=tf_val,
+                    feature_vectors=buffered_fvs,
+                    forward_returns=buffered_rets,
+                    min_sample_size=self.min_discovery_samples,
+                    min_pvalue=0.10,  # Exploratory discovery threshold
+                )
+                self.edges_evaluated += len(discovered)
 
     def _on_discovered_edge(self, edge: DiscoveredEdge) -> None:
         """Callback fired when Edge Discovery Engine finds a new edge."""
@@ -114,13 +174,13 @@ class MasterSystemIntegrationEngine:
         price: float = 1000.0,
         timestamp_iso: str | None = None,
     ) -> dict[str, Any]:
-        """Process a live tick through the complete 5-layer pipeline end-to-end."""
+        """Process a live tick through Market Intelligence, latency benchmarks, and health tracking."""
         start_time = time.perf_counter()
         sym = (symbol or self.symbol).upper()
         now_iso = timestamp_iso or datetime.datetime.now(datetime.timezone.utc).isoformat()
 
         with self._lock:
-            # 1. Market Intelligence Engine Ingestion
+            # 1. Market Intelligence Engine Ingestion (updates data quality, recorder, candles, stats, state)
             raw_payload = {
                 "symbol": sym,
                 "price": price,
@@ -132,60 +192,10 @@ class MasterSystemIntegrationEngine:
             recorded_tick = self.market_intel_engine.process_raw_tick(raw_payload)
             self.ticks_processed += 1
 
-            latest_stats = self._latest_stats.get(sym)
             latest_state = self._latest_state.get(sym)
             regime_str = latest_state.regime.value if latest_state else "TREND"
 
-            # 2. Feature Engineering Engine Processing
-            tf_enum = IntelligenceTimeframe.M1
-            for t_item in IntelligenceTimeframe:
-                if t_item.value == self.timeframe:
-                    tf_enum = t_item
-                    break
-
-            cid, chash = compute_intelligence_candle_id(
-                symbol=sym,
-                timeframe=self.timeframe,
-                open_price=price,
-                high_price=price,
-                low_price=price,
-                close_price=price,
-                open_timestamp=now_iso,
-                close_timestamp=now_iso,
-            )
-
-            candle = IntelligenceCandle(
-                candle_id=cid,
-                symbol=sym,
-                timeframe=tf_enum,
-                open=price,
-                high=price,
-                low=price,
-                close=price,
-                volume=1.0,
-                open_timestamp=now_iso,
-                close_timestamp=now_iso,
-                completed=True,
-                checksum="CHK",
-                metadata={},
-                canonical_hash=chash,
-            )
-
-            fv = self.feature_eng_engine.process_candle(candle, current_stats=latest_stats)
-            self.feature_vectors_generated += 1
-
-            # 3. Edge Discovery Engine Search
-            forward_return = 0.003 if (self.ticks_processed % 3 == 0) else -0.001
-            edges = self.edge_discovery_engine.discover_edges(
-                symbol=sym,
-                timeframe=self.timeframe,
-                feature_vectors=[fv],
-                forward_returns=[forward_return],
-                min_sample_size=1,
-            )
-            self.edges_evaluated += len(edges)
-
-            # 4. Update Subsystem Metrics & Health Status
+            # 2. Update Subsystem Metrics & Health Status
             pipeline_elapsed_ms = (time.perf_counter() - start_time) * 1000.0
             self.last_pipeline_latencies_ms.append(pipeline_elapsed_ms)
             if len(self.last_pipeline_latencies_ms) > 100:
@@ -201,7 +211,7 @@ class MasterSystemIntegrationEngine:
                 "ticks_processed": self.ticks_processed,
                 "pipeline_latency_ms": round(pipeline_elapsed_ms, 3),
                 "market_state": regime_str,
-                "discovered_edges_count": len(edges),
+                "discovered_edges_count": self.edges_evaluated,
             }
 
     def switch_symbol(self, new_symbol: str) -> None:

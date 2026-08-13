@@ -86,33 +86,30 @@ class TelemetryBroadcaster:
             edges_list = []
             if ranked_edges_raw:
                 for edg in ranked_edges_raw:
+                    edg_id = getattr(edg, "edge_id", getattr(edg, "candidate_id", "EDG_0001"))
+                    supported_syms = getattr(edg, "supported_symbols", None)
+                    edg_sym = supported_syms[0] if supported_syms else getattr(edg, "symbol", sym)
+                    metrics_obj = getattr(edg, "metrics", None)
+                    ev_val = getattr(metrics_obj, "expected_value", getattr(edg, "expected_value", 0.0))
+                    sharpe_val = getattr(metrics_obj, "sharpe_ratio", getattr(edg, "sharpe_ratio", 0.0))
+                    pval_val = getattr(edg, "p_value", 0.0)
+                    score_val = getattr(edg, "composite_score", getattr(edg, "score", 0.0))
+                    status_obj = getattr(edg, "status", "ACTIVE")
+                    status_val = status_obj.value if hasattr(status_obj, "value") else str(status_obj)
+                    feat_comb = getattr(edg, "feature_combination", getattr(edg, "feature_names", []))
+                    feats_str = ", ".join(feat_comb) if isinstance(feat_comb, (list, tuple)) else str(feat_comb)
+
                     edges_list.append({
-                        "id": getattr(edg, "edge_id", getattr(edg, "candidate_id", "EDG_0001")),
-                        "symbol": getattr(edg, "symbol", sym),
-                        "ev": round(getattr(edg, "expected_value", 0.0058), 4),
-                        "sharpe": round(getattr(edg, "sharpe_ratio", 2.84), 2),
-                        "pval": round(getattr(edg, "p_value", 0.008), 3),
-                        "score": round(getattr(edg, "composite_score", getattr(edg, "score", 0.92)), 2),
-                        "status": getattr(edg, "status", "ACTIVE"),
-                        "features": ", ".join(getattr(edg, "feature_names", ["trend_strength", "z_score"])),
+                        "id": edg_id,
+                        "symbol": edg_sym,
+                        "ev": round(float(ev_val), 4),
+                        "sharpe": round(float(sharpe_val), 2),
+                        "pval": round(float(pval_val), 4),
+                        "score": round(float(score_val), 2),
+                        "status": status_val,
+                        "features": feats_str,
                     })
-            else:
-                # Live dynamic edge calculated from processed ticks
-                score_mod = round(0.90 + ((self.master_engine.ticks_processed % 8) * 0.01), 3)
-                ev_mod = round(0.0040 + ((self.master_engine.ticks_processed % 10) * 0.0003), 4)
-                sharpe_mod = round(2.50 + ((self.master_engine.ticks_processed % 5) * 0.1), 2)
-                edges_list = [
-                    {
-                        "id": f"EDG_{sym[:4]}_{self.master_engine.ticks_processed % 999:04d}",
-                        "symbol": sym,
-                        "ev": ev_mod,
-                        "sharpe": sharpe_mod,
-                        "pval": 0.008,
-                        "score": score_mod,
-                        "status": "ACTIVE",
-                        "features": "trend_strength, z_score",
-                    }
-                ]
+            # When no genuine statistically discovered edges exist, edges_list remains [] (no synthetic fallback).
 
         # Compute pipeline latency from existing engine metrics (do NOT call
         # process_tick here — the live Deriv feed already drives that pipeline

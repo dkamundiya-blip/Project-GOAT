@@ -81,10 +81,19 @@ class TickRecorder:
         # Timestamp
         epoch_raw = tick_dict.get("epoch", tick_dict.get("timestamp", tick_dict.get("time")))
         if epoch_raw is not None:
-            try:
-                epoch_sec = int(epoch_raw)
-                ts_iso = datetime.datetime.fromtimestamp(epoch_sec, tz=datetime.timezone.utc).isoformat()
-            except (ValueError, TypeError):
+            if isinstance(epoch_raw, (int, float)):
+                ts_iso = datetime.datetime.fromtimestamp(int(epoch_raw), tz=datetime.timezone.utc).isoformat()
+            elif isinstance(epoch_raw, str):
+                try:
+                    epoch_sec = int(epoch_raw)
+                    ts_iso = datetime.datetime.fromtimestamp(epoch_sec, tz=datetime.timezone.utc).isoformat()
+                except ValueError:
+                    try:
+                        dt = datetime.datetime.fromisoformat(epoch_raw.replace("Z", "+00:00"))
+                        ts_iso = dt.isoformat()
+                    except Exception:
+                        ts_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            else:
                 ts_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
         else:
             ts_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()

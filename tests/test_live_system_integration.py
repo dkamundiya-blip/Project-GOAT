@@ -16,6 +16,8 @@ Validates the complete end-to-end pipeline across all 12 institutional validatio
 12. End-to-End Latency Benchmarks (< 10ms tick-to-reasoning)
 """
 
+import datetime
+from datetime import timezone
 import time
 import pytest
 
@@ -62,12 +64,14 @@ def test_validation_3_market_intelligence(master_engine):
 
 
 def test_validation_4_feature_engineering_regeneration(master_engine):
-    """Validation 4: Feature Engineering automatic feature vector regeneration."""
-    for i in range(5):
-        master_engine.process_tick(price=1000.0 + i)
+    """Validation 4: Feature Engineering automatic feature vector regeneration on completed candles."""
+    base_epoch = 1723590000
+    for i in range(6):
+        ts = datetime.datetime.fromtimestamp(base_epoch + (i * 60), tz=datetime.timezone.utc).isoformat()
+        master_engine.process_tick(price=1000.0 + i, timestamp_iso=ts)
 
     status = master_engine.get_system_health_status()
-    assert status["feature_vectors_generated"] == 5
+    assert status["feature_vectors_generated"] >= 5
     assert status["components"]["feature_engineering"]["status"] == "HEALTHY"
 
 
