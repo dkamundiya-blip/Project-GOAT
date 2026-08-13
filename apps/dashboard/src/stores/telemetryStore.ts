@@ -7,7 +7,7 @@
  *
  * Environment-aware WebSocket URL resolution:
  * - Development: ws://localhost:8000/ws/telemetry
- * - Production: wss://project-goat-production.up.railway.app/ws/telemetry
+ * - Production: wss://project-goat.onrender.com/ws/telemetry
  * - Override: import.meta.env.VITE_WS_URL
  */
 
@@ -163,7 +163,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       wsUrl = `${protocol}//${window.location.hostname}:8000/ws/telemetry`;
     } else {
-      wsUrl = 'wss://project-goat-production.up.railway.app/ws/telemetry';
+      wsUrl = 'wss://project-goat.onrender.com/ws/telemetry';
     }
 
     try {

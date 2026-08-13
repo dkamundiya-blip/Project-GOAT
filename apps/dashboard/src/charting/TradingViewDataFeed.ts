@@ -462,7 +462,7 @@ export class TradingViewDataFeed {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         wsUrl = `${protocol}//${window.location.host}/api/v1/market-data/ws`;
       } else {
-        wsUrl = 'wss://project-goat-production.up.railway.app/api/v1/market-data/ws';
+        wsUrl = 'wss://project-goat.onrender.com/api/v1/market-data/ws';
       }
 
       console.log('[TradingViewDataFeed] Connecting WebSocket:', wsUrl);
