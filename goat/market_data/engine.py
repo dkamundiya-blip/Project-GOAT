@@ -8,7 +8,6 @@ Central coordinator orchestrating:
 - Multi-Timeframe Candle Aggregation Engine (LiveCandleBuilder)
 - Buffered Persistence Engine (BufferedTickWriter -> SQLite)
 - Operational Telemetry & Latency Monitoring
-- Integration with v0.8 Validation & Gap Detection Engine
 """
 
 from __future__ import annotations
@@ -30,9 +29,6 @@ from goat.market_data.persistence.tick_writer import BufferedTickWriter, init_li
 from goat.market_data.telemetry.latency import LatencyTracker
 from goat.market_data.telemetry.metrics import IngestionMetricsCollector, IngestionTelemetrySnapshot
 from goat.market_data.websocket.websocket_manager import WebSocketManager
-
-# v0.8 Engine for Validation & Gap Integration
-from goat.marketdata.engine import LiveMarketDataEngine as LegacyMarketDataEngine
 
 _log = get_logger("market_data.engine")
 
@@ -61,9 +57,6 @@ class LiveMarketDataIngestionEngine:
         self.writer = BufferedTickWriter(db_conn=self.db_conn)
         self.metrics = IngestionMetricsCollector()
         self.latency_tracker = LatencyTracker()
-
-        # v0.8 Integration Engine
-        self.legacy_engine = LegacyMarketDataEngine(db_conn=self.db_conn)
 
         self._sequence_counters: dict[str, int] = {}
         self._is_running = False
@@ -161,12 +154,6 @@ class LiveMarketDataIngestionEngine:
 
         # 6. Non-Blocking Persistence Batching
         self.writer.write_tick_sync(tick)
-
-        # 7. Legacy v0.8 Integration (Validation & Gap Detection)
-        try:
-            self.legacy_engine.process_raw_tick(raw_payload, source_latency=tick.latency_ms)
-        except Exception as exc:
-            _log.warning("legacy_engine_process_failed", error=str(exc))
 
     def get_symbol_quote(self, symbol_id: str) -> LiveQuote:
         """Get live quote snapshot for a symbol."""
