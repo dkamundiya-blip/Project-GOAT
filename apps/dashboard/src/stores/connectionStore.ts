@@ -18,9 +18,9 @@ interface ConnectionState {
 }
 
 export const useConnectionStore = create<ConnectionState>((set) => ({
-  restStatus: 'CONNECTED',
-  wsStatus: 'OPEN',
-  latencyMs: 12.5,
+  restStatus: 'DISCONNECTED',
+  wsStatus: 'CLOSED',
+  latencyMs: 0.0,
   reconnectCount: 0,
   mode: 'LIVE',
   setRestStatus: (restStatus) => set({ restStatus }),

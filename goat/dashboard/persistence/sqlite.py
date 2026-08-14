@@ -22,47 +22,24 @@ class DashboardReadOnlyRepositoryAdapter:
     def get_dashboard_summary_metrics(self) -> Dict[str, Any]:
         """Fetch high-level overview metrics across the research pipeline."""
         return {
-            "hypothesis_count": 42,
-            "evidence_records_count": 1250,
-            "validated_edges_count": 18,
-            "promoted_edges_count": 5,
-            "knowledge_graph_nodes": 156,
-            "intelligence_health_score": 94.5,
+            "hypothesis_count": 0,
+            "evidence_records_count": 0,
+            "validated_edges_count": 0,
+            "promoted_edges_count": 0,
+            "knowledge_graph_nodes": 0,
+            "intelligence_health_score": 0.0,
             "database_status": "ONLINE_READ_ONLY",
+            "status": "WARMING_UP",
+            "source": "NO_PERSISTED_RECORDS",
         }
 
     def get_active_hypotheses(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Fetch list of recent research hypotheses."""
-        return [
-            {
-                "hypothesis_id": "HYP_VOL_REGIME_01",
-                "title": "Volatility Cluster Regime Inversion",
-                "category": "MICROSTRUCTURE",
-                "status": "VERIFIED",
-                "confidence_score": 0.88,
-                "created_at": "2026-08-01T10:00:00Z",
-            },
-            {
-                "hypothesis_id": "HYP_JUMP_REVERSI_02",
-                "title": "Synthetic Jump Reversal Expectancy",
-                "category": "STATISTICAL_EDGE",
-                "status": "PROMOTED",
-                "confidence_score": 0.93,
-                "created_at": "2026-08-03T14:30:00Z",
-            },
-        ]
+        return []
 
     def get_governance_decisions(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Fetch list of recent governance decisions."""
-        return [
-            {
-                "decision_id": "GOV_0192837465019283",
-                "edge_id": "EDG_BOOM1000_JUMP_01",
-                "outcome": "PROMOTE",
-                "reason": "Passed all 7 scientific qualification criteria",
-                "decided_at": "2026-08-04T16:00:00Z",
-            }
-        ]
+        return []
 
     def get_market_symbols_status(self) -> List[Dict[str, Any]]:
         """Fetch active status of synthetic index market data streams."""
@@ -74,8 +51,8 @@ class DashboardReadOnlyRepositoryAdapter:
             {
                 "symbol": sym,
                 "status": "STREAMING",
-                "latency_ms": 12.5,
-                "data_quality_score": 0.999,
+                "latency_ms": 0.0,
+                "data_quality_score": 1.0,
             }
             for sym in symbols
         ]

@@ -15,11 +15,11 @@ interface HealthState {
 }
 
 export const useHealthStore = create<HealthState>((set) => ({
-  status: 'RUNNING',
-  uptimeSeconds: 120.0,
-  memoryMb: 128.5,
-  databaseStatus: 'HEALTHY',
-  frozenBackendVersion: 'v0.9.1',
+  status: 'INITIALIZING',
+  uptimeSeconds: 0.0,
+  memoryMb: 0.0,
+  databaseStatus: 'UNKNOWN',
+  frozenBackendVersion: 'v1.2.0',
   setHealth: (health) =>
     set({
       status: health.status,

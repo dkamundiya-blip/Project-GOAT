@@ -3,16 +3,8 @@
  */
 
 import React from 'react';
-import { usePipelineStore } from '../stores/pipelineStore';
 
 export const ArchivePage: React.FC = () => {
-  const { inspectEntityById } = usePipelineStore();
-
-  const archives = [
-    { id: 'ARC_CRASH1000_003', name: 'Crash 1000 Regime Switching Cold Archive', records: 450, sha256: 'e3b0c44298fc1c149afbf4c8996fb924', status: 'READ_ONLY' },
-    { id: 'ARC_STEPINDEX_004', name: 'Step Index Decayed Hypothesis Archive', records: 120, sha256: 'f4c8996fb92427ae41e4649b934ca495', status: 'READ_ONLY' },
-  ];
-
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between border-b border-slate-800 pb-4">
@@ -25,28 +17,28 @@ export const ArchivePage: React.FC = () => {
             Immutable cold-storage archive browsing, historical audit records, and retired hypothesis lineage.
           </p>
         </div>
+        <span className="text-xs font-mono text-cyan-400 bg-slate-900 border border-cyan-900 px-3 py-1 rounded">
+          Archived Records: 0
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {archives.map((item) => (
-          <div
-            key={item.id}
-            onClick={() => inspectEntityById(item.id)}
-            className="p-4 bg-slate-900 border border-slate-800 hover:border-cyan-500 rounded-lg cursor-pointer transition-all space-y-3 font-mono"
-          >
-            <div className="flex justify-between items-center text-xs">
-              <span className="font-bold text-cyan-300">{item.id}</span>
-              <span className="px-2 py-0.5 rounded bg-slate-950 text-slate-400 border border-slate-800 text-[10px]">
-                {item.status}
-              </span>
-            </div>
-            <div className="text-sm font-sans font-semibold text-slate-100">{item.name}</div>
-            <div className="flex justify-between text-xs text-slate-400 pt-2 border-t border-slate-800">
-              <span>Records: {item.records}</span>
-              <span>SHA-256: {item.sha256.substring(0, 8)}...</span>
-            </div>
+      <div className="p-8 bg-slate-900/60 border border-dashed border-slate-800 rounded-xl text-center space-y-3">
+        <div className="text-2xl">📦</div>
+        <div className="text-sm font-semibold text-slate-200">IMMUTABLE COLD-STORAGE ARCHIVE ONLINE</div>
+        <p className="text-xs text-slate-400 max-w-lg mx-auto">
+          No retired hypotheses, decayed alpha models, or historical datasets have been archived in this session.
+          The institutional archive enforces SHA-256 canonical hashing and deterministic replayability for all retired records.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md mx-auto pt-4 text-left font-mono text-xs">
+          <div className="p-3 bg-slate-950 rounded border border-slate-800">
+            <span className="text-slate-500 block text-[10px]">STORAGE ADAPTER</span>
+            <span className="font-bold text-cyan-300">SQLite / archive_records</span>
           </div>
-        ))}
+          <div className="p-3 bg-slate-950 rounded border border-slate-800">
+            <span className="text-slate-500 block text-[10px]">INTEGRITY HASHING</span>
+            <span className="font-bold text-emerald-300">CANONICAL_SHA256</span>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -71,15 +71,15 @@ class MasterSystemIntegrationEngine:
 
         # Subsystem Metrics & Health Tracking (9 Components)
         self.health_metrics: dict[str, dict[str, Any]] = {
-            "websocket": {"status": "HEALTHY", "latency_ms": 1.2, "last_update": "", "error_count": 0, "health": 1.0},
-            "tick_recorder": {"status": "HEALTHY", "latency_ms": 0.5, "last_update": "", "error_count": 0, "health": 1.0},
-            "candle_builder": {"status": "HEALTHY", "latency_ms": 0.8, "last_update": "", "error_count": 0, "health": 1.0},
-            "market_intelligence": {"status": "HEALTHY", "latency_ms": 2.1, "last_update": "", "error_count": 0, "health": 1.0},
-            "feature_engineering": {"status": "HEALTHY", "latency_ms": 3.4, "last_update": "", "error_count": 0, "health": 1.0},
-            "edge_discovery": {"status": "HEALTHY", "latency_ms": 8.5, "last_update": "", "error_count": 0, "health": 1.0},
-            "ai_reasoning": {"status": "HEALTHY", "latency_ms": 4.2, "last_update": "", "error_count": 0, "health": 1.0},
-            "dashboard": {"status": "HEALTHY", "latency_ms": 1.1, "last_update": "", "error_count": 0, "health": 1.0},
-            "research_api": {"status": "HEALTHY", "latency_ms": 2.0, "last_update": "", "error_count": 0, "health": 1.0},
+            "websocket": {"status": "HEALTHY", "latency_ms": 0.0, "last_update": "", "error_count": 0, "health": 1.0},
+            "tick_recorder": {"status": "HEALTHY", "latency_ms": 0.0, "last_update": "", "error_count": 0, "health": 1.0},
+            "candle_builder": {"status": "HEALTHY", "latency_ms": 0.0, "last_update": "", "error_count": 0, "health": 1.0},
+            "market_intelligence": {"status": "HEALTHY", "latency_ms": 0.0, "last_update": "", "error_count": 0, "health": 1.0},
+            "feature_engineering": {"status": "HEALTHY", "latency_ms": 0.0, "last_update": "", "error_count": 0, "health": 1.0},
+            "edge_discovery": {"status": "HEALTHY", "latency_ms": 0.0, "last_update": "", "error_count": 0, "health": 1.0},
+            "ai_reasoning": {"status": "HEALTHY", "latency_ms": 0.0, "last_update": "", "error_count": 0, "health": 1.0},
+            "dashboard": {"status": "HEALTHY", "latency_ms": 0.0, "last_update": "", "error_count": 0, "health": 1.0},
+            "research_api": {"status": "HEALTHY", "latency_ms": 0.0, "last_update": "", "error_count": 0, "health": 1.0},
         }
 
         # Per (symbol, timeframe) Observation & Forward Return Buffer State
@@ -95,6 +95,7 @@ class MasterSystemIntegrationEngine:
         self.feature_vectors_generated = 0
         self.edges_evaluated = 0
         self.last_pipeline_latencies_ms: list[float] = []
+        self._recent_tick_timestamps: list[float] = []
 
     def _on_statistics(self, stats: MarketStatistics) -> None:
         """Callback fired when Market Statistics Engine updates continuous metrics."""
@@ -188,12 +189,15 @@ class MasterSystemIntegrationEngine:
                 "timestamp": now_iso,
                 "tick_id": f"TCK_{sym}_{self.ticks_processed + 1}",
             }
-
             recorded_tick = self.market_intel_engine.process_raw_tick(raw_payload)
             self.ticks_processed += 1
+            now_perf = time.time()
+            self._recent_tick_timestamps.append(now_perf)
+            # Prune timestamps older than 10 seconds
+            self._recent_tick_timestamps = [t for t in self._recent_tick_timestamps if now_perf - t <= 10.0]
 
             latest_state = self._latest_state.get(sym)
-            regime_str = latest_state.regime.value if latest_state else "TREND"
+            regime_str = latest_state.regime.value if latest_state else "INITIALIZING"
 
             # 2. Update Subsystem Metrics & Health Status
             pipeline_elapsed_ms = (time.perf_counter() - start_time) * 1000.0
@@ -203,6 +207,8 @@ class MasterSystemIntegrationEngine:
 
             for key in self.health_metrics:
                 self.health_metrics[key]["last_update"] = now_iso
+                if key in ("market_intelligence", "feature_engineering"):
+                    self.health_metrics[key]["latency_ms"] = round(pipeline_elapsed_ms, 3)
 
             return {
                 "symbol": sym,
@@ -213,6 +219,18 @@ class MasterSystemIntegrationEngine:
                 "market_state": regime_str,
                 "discovered_edges_count": self.edges_evaluated,
             }
+
+    def get_measured_tick_rate(self) -> float:
+        """Compute real measured rolling tick rate (ticks per second over recent window)."""
+        with self._lock:
+            now = time.time()
+            self._recent_tick_timestamps = [t for t in self._recent_tick_timestamps if now - t <= 10.0]
+            if len(self._recent_tick_timestamps) < 2:
+                return 0.0
+            dt = self._recent_tick_timestamps[-1] - self._recent_tick_timestamps[0]
+            if dt <= 0.0001:
+                return 0.0
+            return round(len(self._recent_tick_timestamps) / dt, 1)
 
     def switch_symbol(self, new_symbol: str) -> None:
         """Switch active monitoring symbol across all engines."""
@@ -232,7 +250,7 @@ class MasterSystemIntegrationEngine:
             avg_latency = (
                 sum(self.last_pipeline_latencies_ms) / len(self.last_pipeline_latencies_ms)
                 if self.last_pipeline_latencies_ms
-                else 2.5
+                else 0.0
             )
 
             components_summary = {}

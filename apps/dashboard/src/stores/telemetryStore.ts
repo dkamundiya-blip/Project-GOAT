@@ -13,6 +13,8 @@
 
 import { create } from 'zustand';
 
+import { useConnectionStore } from './connectionStore';
+
 export interface TelemetryEdge {
   id: string;
   symbol: string;
@@ -124,11 +126,11 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
   pipelineLatencyMs: 0.0,
 
   marketState: {
-    regime: 'CONNECTING...',
+    regime: 'INITIALIZING',
     trend: 'INITIALIZING',
-    volatility: 'COMPUTING',
-    momentum: 'COMPUTING',
-    liquidity: 'NORMAL',
+    volatility: 'INITIALIZING',
+    momentum: 'INITIALIZING',
+    liquidity: 'INITIALIZING',
     tickRate: 0.0,
   },
 
@@ -142,7 +144,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
   edges: [],
 
   systemHealth: {
-    overall_status: 'CONNECTING',
+    overall_status: 'INITIALIZING',
     components: {},
   },
 
@@ -152,6 +154,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     }
 
     set({ connectionStatus: reconnectAttempts > 0 ? 'RECONNECTING' : 'CONNECTING' });
+    useConnectionStore.getState().setWsStatus(reconnectAttempts > 0 ? 'CONNECTING' : 'CONNECTING');
 
     // Environment-Aware WebSocket URL Resolution
     let wsUrl: string;
@@ -172,35 +175,42 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
       socket.onopen = () => {
         reconnectAttempts = 0;
         set({ connectionStatus: 'CONNECTED' });
+        useConnectionStore.getState().setWsStatus('OPEN');
+        useConnectionStore.getState().setRestStatus('CONNECTED');
       };
 
       socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'TELEMETRY_UPDATE') {
-            const currentLatency = data.pipeline_latency_ms || 2.38;
+            const currentLatency = data.pipeline_latency_ms || 0.0;
+            useConnectionStore.getState().setLatency(currentLatency);
+
             const newFrame: TelemetryFrame = {
               frame_id: `FRM_${Date.now()}`,
               channel: 'TELEMETRY',
               sequence: (get().frames[0]?.sequence || 0) + 1,
               timestamp: data.timestamp || new Date().toISOString(),
-              cpu_percent: 3.2,
-              memory_mb: 84.2,
-              payload_summary: `Tick #${data.ticks_processed || 0} latency ${currentLatency}ms`,
+              cpu_percent: 0.0,
+              memory_mb: 0.0,
+              payload_summary: `Tick #${data.ticks_processed || 0} latency ${currentLatency.toFixed(2)}ms`,
             };
 
-            // Construct new audit event for real-time accumulating log
+            // Construct honest audit events for real-time accumulating log
             const eventTime = new Date().toLocaleTimeString();
             const topEdge = data.edges?.[0];
-            let eventText = `Tick #${data.ticks_processed} on ${data.symbol || 'BOOM_1000'} | Latency: ${currentLatency.toFixed(2)}ms | State: ${data.market_state?.regime || 'TREND'}`;
+            const prevCandles = get().candlesClosed;
+            const newCandles = data.candles_closed ?? prevCandles;
+
+            let eventText = `Tick #${data.ticks_processed} on ${data.symbol || 'BOOM_1000'} | Latency: ${currentLatency.toFixed(2)}ms | State: ${data.market_state?.regime || 'INITIALIZING'}`;
             let eventType: TelemetryEvent['type'] = 'TELEMETRY';
 
-            if (topEdge && (data.ticks_processed % 3 === 0)) {
+            if (newCandles > prevCandles) {
+              eventText = `Candle #${newCandles} closed on ${data.symbol || 'BOOM_1000'} (${data.timeframe || '1m'}) | Feature Vector generated`;
+              eventType = 'SYSTEM';
+            } else if (topEdge && data.edges && data.edges.length > 0) {
               eventText = `DiscoveredEdge ${topEdge.id} active on ${topEdge.symbol} | EV: +${(topEdge.ev * 100).toFixed(2)}% | Score: ${topEdge.score}`;
               eventType = 'DISCOVERY';
-            } else if (data.ticks_processed % 5 === 0) {
-              eventText = `Validation Session PASSED on ${data.symbol || 'BOOM_1000'} (Holdout isolation verified)`;
-              eventType = 'VALIDATION';
             }
 
             const newEvent: TelemetryEvent = {
@@ -208,7 +218,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
               type: eventType,
               text: eventText,
               time: eventTime,
-              hash: `SHA_${(data.ticks_processed * 137).toString(16).padStart(8, '0')}`,
+              hash: `SHA_${((data.ticks_processed || 1) * 137).toString(16).padStart(8, '0')}`,
             };
 
             set({
@@ -223,12 +233,12 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
               edgesEvaluated: data.edges_evaluated ?? get().edgesEvaluated,
               pipelineLatencyMs: data.pipeline_latency_ms ?? get().pipelineLatencyMs,
               marketState: data.market_state ? {
-                regime: data.market_state.regime || 'TREND_EXPANSION',
-                trend: data.market_state.trend || 'BULLISH',
-                volatility: data.market_state.volatility || 'HIGH',
-                momentum: data.market_state.momentum || 'POSITIVE',
-                liquidity: data.market_state.liquidity || 'NORMAL',
-                tickRate: data.market_state.tick_rate || 14.2,
+                regime: data.market_state.regime || 'INITIALIZING',
+                trend: data.market_state.trend || 'INITIALIZING',
+                volatility: data.market_state.volatility || 'INITIALIZING',
+                momentum: data.market_state.momentum || 'INITIALIZING',
+                liquidity: data.market_state.liquidity || 'INITIALIZING',
+                tickRate: data.market_state.tick_rate || 0.0,
               } : get().marketState,
               statistics: data.statistics ? {
                 atr: data.statistics.atr || 0.0,
@@ -236,7 +246,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
                 rollingVwap: data.statistics.rolling_vwap || 0.0,
                 spreadVariance: data.statistics.spread_variance || 0.0,
               } : get().statistics,
-              edges: data.edges || get().edges,
+              edges: data.edges || [],
               systemHealth: data.system_health || get().systemHealth,
             });
           }
@@ -247,6 +257,8 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
 
       socket.onclose = () => {
         set({ connectionStatus: 'DISCONNECTED' });
+        useConnectionStore.getState().setWsStatus('CLOSED');
+        useConnectionStore.getState().incrementReconnectCount();
         reconnectAttempts++;
         const backoffMs = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
         reconnectTimer = setTimeout(() => {
@@ -259,6 +271,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
       };
     } catch (e) {
       set({ connectionStatus: 'DISCONNECTED' });
+      useConnectionStore.getState().setWsStatus('CLOSED');
     }
   },
 

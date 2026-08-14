@@ -62,18 +62,18 @@ class TelemetryBroadcaster:
             latest_state = self.master_engine._latest_state.get(sym)
 
             # Continuous Market Statistics computed dynamically from engine
-            atr_val = round(getattr(latest_stats, "atr_14", 1.4820), 4) if latest_stats else 1.4820
-            realized_vol = round(getattr(latest_stats, "realized_volatility_20", 0.0521), 4) if latest_stats else 0.0521
-            vwap_val = round(getattr(latest_stats, "vwap", 1004.25), 2) if latest_stats else 1004.25
-            spread_var = round(getattr(latest_stats, "spread_variance", 0.0012), 4) if latest_stats else 0.0012
+            atr_val = round(float(getattr(latest_stats, "atr_14", 0.0)), 4) if latest_stats else 0.0
+            realized_vol = round(float(getattr(latest_stats, "realized_volatility_20", 0.0)), 4) if latest_stats else 0.0
+            vwap_val = round(float(getattr(latest_stats, "vwap", 0.0)), 2) if latest_stats else 0.0
+            spread_var = round(float(getattr(latest_stats, "spread_variance", 0.0)), 4) if latest_stats else 0.0
 
             # Dynamic 5-D Market State
-            regime_val = latest_state.regime.value if latest_state else "TREND_EXPANSION"
-            trend_val = latest_state.trend.value if latest_state else "BULLISH"
-            vol_val = latest_state.volatility.value if latest_state else "HIGH"
-            mom_val = latest_state.momentum.value if latest_state else "POSITIVE"
-            liq_val = latest_state.liquidity.value if latest_state else "NORMAL"
-            tick_rate_val = round(12.0 + (time.time() % 5.0), 1)
+            regime_val = latest_state.regime.value if latest_state else "INITIALIZING"
+            trend_val = latest_state.trend.value if latest_state else "INITIALIZING"
+            vol_val = latest_state.volatility.value if latest_state else "INITIALIZING"
+            mom_val = latest_state.momentum.value if latest_state else "INITIALIZING"
+            liq_val = latest_state.liquidity.value if latest_state else "INITIALIZING"
+            tick_rate_val = self.master_engine.get_measured_tick_rate()
 
             # Discovered Edges from live Edge Discovery Engine repository
             # Note: get_top_edges() performs a SQLite query which may raise
@@ -118,7 +118,7 @@ class TelemetryBroadcaster:
         avg_latency = (
             sum(self.master_engine.last_pipeline_latencies_ms) / len(self.master_engine.last_pipeline_latencies_ms)
             if self.master_engine.last_pipeline_latencies_ms
-            else 2.38
+            else 0.0
         )
 
         return {
