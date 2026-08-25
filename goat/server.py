@@ -17,6 +17,7 @@ Central ASGI application orchestrating:
 from __future__ import annotations
 
 import asyncio
+import datetime
 import os
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -28,6 +29,7 @@ from fastapi.responses import JSONResponse
 
 from goat.logging import get_logger
 from goat.market_data.engine import LiveMarketDataIngestionEngine
+from goat.market_data.models.symbol import get_symbol_config
 from goat.market_data.api.rest import MarketDataRESTHandler
 from goat.dashboard.persistence.sqlite import DashboardReadOnlyRepositoryAdapter
 from goat.dashboard.telemetry.collector import SystemTelemetryCollector
@@ -76,9 +78,22 @@ async def on_tick_pipeline_wrapper(raw_payload: dict[str, Any]) -> None:
 
     if master_engine:
         try:
-            sym = raw_payload.get("symbol", "BOOM_1000")
-            price = float(raw_payload.get("price", raw_payload.get("quote", 1000.0)))
-            ts = raw_payload.get("timestamp")
+            tick_data = raw_payload.get("tick", raw_payload) if isinstance(raw_payload.get("tick"), dict) else raw_payload
+            raw_sym = str(tick_data.get("symbol", tick_data.get("underlying_symbol", "BOOM_1000"))).strip()
+            cfg = get_symbol_config(raw_sym)
+            sym = cfg.symbol_id if cfg else raw_sym.upper()
+
+            raw_price = tick_data.get("quote", tick_data.get("price", tick_data.get("mid_price", 1000.0)))
+            price = float(raw_price) if raw_price is not None else 1000.0
+
+            epoch_raw = tick_data.get("epoch", tick_data.get("timestamp"))
+            if isinstance(epoch_raw, (int, float)):
+                ts = datetime.datetime.fromtimestamp(int(epoch_raw), tz=datetime.timezone.utc).isoformat()
+            elif isinstance(epoch_raw, str):
+                ts = epoch_raw
+            else:
+                ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
             master_engine.process_tick(symbol=sym, price=price, timestamp_iso=ts)
         except Exception as exc:
             _log.error("master_engine_tick_pipeline_exception", error=str(exc))
