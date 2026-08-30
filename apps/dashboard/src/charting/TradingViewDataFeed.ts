@@ -457,12 +457,17 @@ export class TradingViewDataFeed {
     if (this._destroyed || typeof window === 'undefined') return;
 
     try {
+      // Environment-Aware WebSocket URL Resolution
       let wsUrl: string;
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      const envWsUrl = (import.meta as any).env?.VITE_MARKET_WS_URL;
+
+      if (envWsUrl) {
+        wsUrl = envWsUrl;
+      } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         wsUrl = `${protocol}//${window.location.host}/api/v1/market-data/ws`;
       } else {
-        wsUrl = 'wss://project-goat.onrender.com/api/v1/market-data/ws';
+        wsUrl = 'wss://project-goat-production.up.railway.app/api/v1/market-data/ws';
       }
 
       console.log('[TradingViewDataFeed] Connecting WebSocket:', wsUrl);
