@@ -1,0 +1,371 @@
+{
+  "/api/v1/health": {
+    "status_code": 200,
+    "latency_ms": 786.95,
+    "response": {
+      "status": "RUNNING",
+      "uptime_seconds": 1386.65,
+      "active_ws_clients": 0,
+      "system_memory_mb": 0.0,
+      "database_status": "HEALTHY",
+      "frozen_backend_version": "v0.9.1"
+    }
+  },
+  "/api/v1/summary": {
+    "status_code": 200,
+    "latency_ms": 1143.56,
+    "response": {
+      "payload_id": "DAP_51C408D8ECB6C11C",
+      "route": "/api/v1/summary",
+      "status_code": 200,
+      "timestamp": "2026-08-14T15:59:53.435332+00:00",
+      "data": {
+        "hypothesis_count": 0,
+        "evidence_records_count": 0,
+        "validated_edges_count": 0,
+        "promoted_edges_count": 0,
+        "knowledge_graph_nodes": 0,
+        "intelligence_health_score": 0.0,
+        "database_status": "ONLINE_READ_ONLY",
+        "status": "WARMING_UP",
+        "source": "NO_PERSISTED_RECORDS"
+      },
+      "meta": {
+        "frozen_backend": "v0.9.1"
+      }
+    }
+  },
+  "/api/v1/hypotheses": {
+    "status_code": 200,
+    "latency_ms": 487.32,
+    "response": {
+      "payload_id": "DAP_2C99EB6D1C4AB101",
+      "route": "/api/v1/hypotheses",
+      "status_code": 200,
+      "timestamp": "2026-08-14T15:59:53.969641+00:00",
+      "data": {
+        "hypotheses": [],
+        "count": 0
+      },
+      "meta": {
+        "frozen_backend": "v0.9.1"
+      }
+    }
+  },
+  "/api/v1/governance": {
+    "status_code": 200,
+    "latency_ms": 469.31,
+    "response": {
+      "payload_id": "DAP_C3D8CCB46F3D37BD",
+      "route": "/api/v1/governance",
+      "status_code": 200,
+      "timestamp": "2026-08-14T15:59:54.472402+00:00",
+      "data": {
+        "decisions": [],
+        "count": 0
+      },
+      "meta": {
+        "frozen_backend": "v0.9.1"
+      }
+    }
+  },
+  "/api/v1/market-data/status": {
+    "status_code": 200,
+    "latency_ms": 645.59,
+    "response": {
+      "payload_id": "DAP_CB8300F7416FEA47",
+      "route": "/api/v1/market-data/status",
+      "status_code": 200,
+      "timestamp": "2026-08-14T15:59:55.076507+00:00",
+      "data": {
+        "connection_state": "CONNECTED",
+        "uptime_seconds": 1395.4,
+        "subscribed_symbols": [
+          "BOOM_1000",
+          "CRASH_1000",
+          "STEP_INDEX",
+          "VOLATILITY_10",
+          "VOLATILITY_100",
+          "VOLATILITY_25",
+          "VOLATILITY_50",
+          "VOLATILITY_75"
+        ],
+        "total_ticks_received": 10936,
+        "ticks_per_second": 6.2,
+        "reconnect_count": 0,
+        "dropped_packets": 0
+      },
+      "meta": {
+        "frozen_backend": "v1.0.0"
+      }
+    }
+  },
+  "/api/v1/market-data/metrics": {
+    "status_code": 200,
+    "latency_ms": 562.45,
+    "response": {
+      "payload_id": "DAP_E3E7DC89980562BA",
+      "route": "/api/v1/market-data/metrics",
+      "status_code": 200,
+      "timestamp": "2026-08-14T15:59:55.657569+00:00",
+      "data": {
+        "total_ticks_received": 10948,
+        "ticks_per_second": 7.4,
+        "websocket_uptime_seconds": 1395.9,
+        "dropped_packets": 0,
+        "reconnect_count": 0,
+        "cpu_usage_percent": 1.7,
+        "memory_usage_mb": 92.9,
+        "queue_size": 0,
+        "buffer_size": 28,
+        "database_writes_per_second": 8.98,
+        "average_latency_ms": 1084.09,
+        "maximum_latency_ms": 2562.59,
+        "timestamp": "2026-08-14T15:59:55.658160+00:00"
+      },
+      "meta": {
+        "frozen_backend": "v1.0.0"
+      }
+    }
+  },
+  "/api/v1/market-data/symbols": {
+    "status_code": 200,
+    "latency_ms": 471.02,
+    "response": {
+      "payload_id": "DAP_1300BE0E47F7C26C",
+      "route": "/api/v1/market-data/symbols",
+      "status_code": 200,
+      "timestamp": "2026-08-14T15:59:56.136032+00:00",
+      "data": {
+        "symbols": [
+          {
+            "symbol": "VOLATILITY_10",
+            "deriv_ws_symbol": "R_10",
+            "live_price": 4884.278,
+            "bid": 4884.2775,
+            "ask": 4884.2785,
+            "spread": 0.001,
+            "connection_status": "CONNECTED",
+            "latency_ms": 1555.704,
+            "tick_frequency": 1.0,
+            "streaming_status": "STREAMING",
+            "last_tick_time": "2026-08-14T15:59:55.555699+00:00",
+            "total_ticks": 1394
+          },
+          {
+            "symbol": "VOLATILITY_25",
+            "deriv_ws_symbol": "R_25",
+            "live_price": 2640.83,
+            "bid": 2640.8295,
+            "ask": 2640.8305,
+            "spread": 0.001,
+            "connection_status": "CONNECTED",
+            "latency_ms": 1706.632,
+            "tick_frequency": 1.0,
+            "streaming_status": "STREAMING",
+            "last_tick_time": "2026-08-14T15:59:55.706627+00:00",
+            "total_ticks": 1356
+          },
+          {
+            "symbol": "VOLATILITY_50",
+            "deriv_ws_symbol": "R_50",
+            "live_price": 99.6692,
+            "bid": 99.66915,
+            "ask": 99.66925,
+            "spread": 0.0001,
+            "connection_status": "CONNECTED",
+            "latency_ms": 1629.62,
+            "tick_frequency": 1.0,
+            "streaming_status": "STREAMING",
+            "last_tick_time": "2026-08-14T15:59:55.629613+00:00",
+            "total_ticks": 1354
+          },
+          {
+            "symbol": "VOLATILITY_75",
+            "deriv_ws_symbol": "R_75",
+            "live_price": 49020.1801,
+            "bid": 49020.18005,
+            "ask": 49020.18015,
+            "spread": 0.0001,
+            "connection_status": "CONNECTED",
+            "latency_ms": 1447.638,
+            "tick_frequency": 0.8,
+            "streaming_status": "STREAMING",
+            "last_tick_time": "2026-08-14T15:59:55.447633+00:00",
+            "total_ticks": 1364
+          },
+          {
+            "symbol": "VOLATILITY_100",
+            "deriv_ws_symbol": "R_100",
+            "live_price": 665.82,
+            "bid": 665.815,
+            "ask": 665.825,
+            "spread": 0.01,
+            "connection_status": "CONNECTED",
+            "latency_ms": 1669.399,
+            "tick_frequency": 1.0,
+            "streaming_status": "STREAMING",
+            "last_tick_time": "2026-08-14T15:59:55.669394+00:00",
+            "total_ticks": 1350
+          },
+          {
+            "symbol": "BOOM_1000",
+            "deriv_ws_symbol": "BOOM1000",
+            "live_price": 14941.799,
+            "bid": 14941.7985,
+            "ask": 14941.7995,
+            "spread": 0.001,
+            "connection_status": "CONNECTED",
+            "latency_ms": 483.706,
+            "tick_frequency": 1.0,
+            "streaming_status": "STREAMING",
+            "last_tick_time": "2026-08-14T15:59:55.483701+00:00",
+            "total_ticks": 1396
+          },
+          {
+            "symbol": "CRASH_1000",
+            "deriv_ws_symbol": "CRASH1000",
+            "live_price": 5689.844,
+            "bid": 5689.8435,
+            "ask": 5689.8445,
+            "spread": 0.001,
+            "connection_status": "CONNECTED",
+            "latency_ms": 520.321,
+            "tick_frequency": 1.0,
+            "streaming_status": "STREAMING",
+            "last_tick_time": "2026-08-14T15:59:55.520316+00:00",
+            "total_ticks": 1386
+          },
+          {
+            "symbol": "STEP_INDEX",
+            "deriv_ws_symbol": "stpRNG",
+            "live_price": 7730.4,
+            "bid": 7730.395,
+            "ask": 7730.405,
+            "spread": 0.01,
+            "connection_status": "CONNECTED",
+            "latency_ms": 591.996,
+            "tick_frequency": 1.0,
+            "streaming_status": "STREAMING",
+            "last_tick_time": "2026-08-14T15:59:55.591989+00:00",
+            "total_ticks": 1352
+          }
+        ],
+        "count": 8
+      },
+      "meta": {
+        "frozen_backend": "v1.0.0"
+      }
+    }
+  },
+  "/api/v1/validation/status": {
+    "status_code": 200,
+    "latency_ms": 1072.09,
+    "response": {
+      "overall_status": "HEALTHY",
+      "symbol": "BOOM_1000",
+      "timeframe": "1m",
+      "average_pipeline_latency_ms": 4.12,
+      "ticks_processed": 10960,
+      "candles_closed": 23,
+      "feature_vectors_generated": 23,
+      "edges_evaluated": 0,
+      "components": {
+        "websocket": {
+          "name": "Websocket",
+          "status": "HEALTHY",
+          "latency_ms": 0.0,
+          "last_update": "2026-08-14T15:59:57.165203+00:00",
+          "error_count": 0,
+          "health": 1.0
+        },
+        "tick_recorder": {
+          "name": "Tick Recorder",
+          "status": "HEALTHY",
+          "latency_ms": 0.0,
+          "last_update": "2026-08-14T15:59:57.165203+00:00",
+          "error_count": 0,
+          "health": 1.0
+        },
+        "candle_builder": {
+          "name": "Candle Builder",
+          "status": "HEALTHY",
+          "latency_ms": 0.0,
+          "last_update": "2026-08-14T15:59:57.165203+00:00",
+          "error_count": 0,
+          "health": 1.0
+        },
+        "market_intelligence": {
+          "name": "Market Intelligence",
+          "status": "HEALTHY",
+          "latency_ms": 3.89,
+          "last_update": "2026-08-14T15:59:57.165203+00:00",
+          "error_count": 0,
+          "health": 1.0
+        },
+        "feature_engineering": {
+          "name": "Feature Engineering",
+          "status": "HEALTHY",
+          "latency_ms": 3.89,
+          "last_update": "2026-08-14T15:59:57.165203+00:00",
+          "error_count": 0,
+          "health": 1.0
+        },
+        "edge_discovery": {
+          "name": "Edge Discovery",
+          "status": "HEALTHY",
+          "latency_ms": 0.0,
+          "last_update": "2026-08-14T15:59:57.165203+00:00",
+          "error_count": 0,
+          "health": 1.0
+        },
+        "ai_reasoning": {
+          "name": "Ai Reasoning",
+          "status": "HEALTHY",
+          "latency_ms": 0.0,
+          "last_update": "2026-08-14T15:59:57.165203+00:00",
+          "error_count": 0,
+          "health": 1.0
+        },
+        "dashboard": {
+          "name": "Dashboard",
+          "status": "HEALTHY",
+          "latency_ms": 0.0,
+          "last_update": "2026-08-14T15:59:57.165203+00:00",
+          "error_count": 0,
+          "health": 1.0
+        },
+        "research_api": {
+          "name": "Research Api",
+          "status": "HEALTHY",
+          "latency_ms": 0.0,
+          "last_update": "2026-08-14T15:59:57.165203+00:00",
+          "error_count": 0,
+          "health": 1.0
+        }
+      }
+    }
+  },
+  "/api/v1/workspace/summary": {
+    "status_code": 200,
+    "latency_ms": 560.45,
+    "response": {
+      "bookmark_count": 0,
+      "note_count": 0,
+      "notebook_count": 0,
+      "active_workspace": "INSTITUTIONAL_RESEARCH"
+    }
+  },
+  "/api/v1/research/graph/summary": {
+    "status_code": 200,
+    "latency_ms": 482.26,
+    "response": {
+      "node_count": 0,
+      "edge_count": 0
+    }
+  },
+  "/api/v1/research/ranking": {
+    "error": "HTTP Error 500: Internal Server Error",
+    "latency_ms": 477.88
+  }
+}

@@ -38,7 +38,6 @@ class WebSocketManager:
         self._connect_time: datetime.datetime | None = None
         self._on_tick_callback: Callable[[dict[str, Any]], Coroutine[Any, Any, None]] | None = None
         self._reconnecting = False
-        self._stream_poll_task: asyncio.Task[None] | None = None
 
         # Wire client callbacks
         self.client.on_tick = self._handle_client_tick
@@ -66,7 +65,7 @@ class WebSocketManager:
         self._on_tick_callback = callback
 
     async def connect(self) -> bool:
-        """Connect WebSocket client, start heartbeat monitor & continuous stream poll loop."""
+        """Connect WebSocket client, start heartbeat monitoring, and recover streams."""
         if self.client.is_connected:
             return True
 
@@ -85,10 +84,6 @@ class WebSocketManager:
                 on_timeout_fn=self._trigger_reconnect,
             )
 
-            # Start Continuous Stream Loop
-            if self._stream_poll_task is None or self._stream_poll_task.done():
-                self._stream_poll_task = asyncio.create_task(self._stream_poll_loop())
-
             # Re-subscribe existing symbols if reconnecting
             await self._resubscribe_all()
             _log.info("ws_manager_connected_successfully")
@@ -102,13 +97,6 @@ class WebSocketManager:
         _log.info("ws_manager_disconnecting")
         self._connection_state = "DISCONNECTED"
         self._connect_time = None
-        if self._stream_poll_task and not self._stream_poll_task.done():
-            self._stream_poll_task.cancel()
-            try:
-                await self._stream_poll_task
-            except (asyncio.CancelledError, Exception):
-                pass
-            self._stream_poll_task = None
         await self.heartbeat.stop()
         await self.client.disconnect()
         _log.info("ws_manager_disconnected")
@@ -180,21 +168,6 @@ class WebSocketManager:
                 await self.client.subscribe_symbol(deriv_ws_sym)
             except Exception as exc:
                 _log.error("resubscribe_failed", symbol=goat_sym, error=str(exc))
-
-    async def _stream_poll_loop(self) -> None:
-        """Continuous background task fetching live Deriv ticks every 1.0 second."""
-        while self.connection_state == "CONNECTED":
-            try:
-                if self._subscribed_symbols:
-                    for goat_sym in list(self._subscribed_symbols):
-                        cfg = get_symbol_config(goat_sym)
-                        deriv_ws_sym = cfg.deriv_ws_symbol if cfg else goat_sym
-                        await self.client.fetch_latest_tick(deriv_ws_sym)
-            except asyncio.CancelledError:
-                break
-            except Exception as exc:
-                _log.warning("stream_poll_loop_error", error=str(exc))
-            await asyncio.sleep(1.0)
 
     async def _handle_client_tick(self, raw_payload: dict[str, Any]) -> None:
         """Route incoming raw client tick to manager callback."""

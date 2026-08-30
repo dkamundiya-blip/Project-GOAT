@@ -65,10 +65,32 @@ async def broadcast_tick_to_websockets(raw_payload: dict[str, Any]) -> None:
     for ws in list(connected_websockets):
         try:
             await ws.send_json(raw_payload)
-        except Exception:
+        except Exception as exc:
+            _log.warning("browser_websocket_broadcast_failed", error=str(exc), exc_info=True)
             disconnected.add(ws)
     for ws in disconnected:
         connected_websockets.discard(ws)
+
+
+async def send_initial_tick_snapshot(websocket: WebSocket) -> None:
+    """Send already-ingested ticks to a newly connected browser, when available."""
+    if engine is None:
+        return
+
+    for tick in engine.get_latest_ticks():
+        payload = {
+            "tick": {
+                "symbol": tick.symbol,
+                "quote": tick.price,
+                "epoch": tick.epoch_timestamp,
+            }
+        }
+        try:
+            await websocket.send_json(payload)
+        except Exception as exc:
+            _log.warning("browser_websocket_initial_snapshot_failed", error=str(exc), exc_info=True)
+            connected_websockets.discard(websocket)
+            return
 
 
 async def on_tick_pipeline_wrapper(raw_payload: dict[str, Any]) -> None:
@@ -346,6 +368,7 @@ async def websocket_stream_endpoint(websocket: WebSocket):
     await websocket.accept()
     connected_websockets.add(websocket)
     _log.info("browser_websocket_client_connected", count=len(connected_websockets))
+    await send_initial_tick_snapshot(websocket)
 
     try:
         while True:

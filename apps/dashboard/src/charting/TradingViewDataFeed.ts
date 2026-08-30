@@ -127,6 +127,7 @@ export class TradingViewDataFeed {
   private subscribers: Map<string, SubscriberEntry> = new Map();
   private ws: WebSocket | null = null;
   private wsConnected: boolean = false;
+  private wsHasReceivedValidTick: boolean = false;
   private pollingTimerId: ReturnType<typeof setInterval> | null = null;
   private pollFallbackActive: boolean = false;
   private _destroyed: boolean = false;
@@ -167,6 +168,7 @@ export class TradingViewDataFeed {
     }
 
     this.wsConnected = false;
+    this.wsHasReceivedValidTick = false;
     TradingViewDataFeed._instance = null;
     console.log('[TradingViewDataFeed] DataFeed destroyed.');
   }
@@ -476,25 +478,23 @@ export class TradingViewDataFeed {
       this.ws.onopen = () => {
         console.log('[TradingViewDataFeed] WebSocket connected');
         this.wsConnected = true;
+        this.wsHasReceivedValidTick = false;
 
-        // Stop HTTP polling fallback if WS is now connected
-        if (this.pollingTimerId !== null) {
-          clearInterval(this.pollingTimerId);
-          this.pollingTimerId = null;
-          this.pollFallbackActive = false;
-          console.log('[TradingViewDataFeed] Stopped HTTP polling fallback (WS active)');
-        }
+        // A successful handshake does not prove that market data is flowing.
+        this.startPollingFallback();
       };
 
       this.ws.onerror = () => {
         console.warn('[TradingViewDataFeed] WebSocket error');
         this.wsConnected = false;
+        this.wsHasReceivedValidTick = false;
         this.startPollingFallback();
       };
 
       this.ws.onclose = () => {
         console.log('[TradingViewDataFeed] WebSocket closed');
         this.wsConnected = false;
+        this.wsHasReceivedValidTick = false;
         // Start polling fallback if we still have subscribers
         if (this.subscribers.size > 0 && !this._destroyed) {
           this.startPollingFallback();
@@ -523,6 +523,16 @@ export class TradingViewDataFeed {
       const epochSec = rawTick.epoch ? Number(rawTick.epoch) : Math.floor(Date.now() / 1000);
 
       if (!rawSymbol || isNaN(price) || price <= 0) return;
+
+      if (!this.wsHasReceivedValidTick) {
+        this.wsHasReceivedValidTick = true;
+        if (this.pollingTimerId !== null) {
+          clearInterval(this.pollingTimerId);
+          this.pollingTimerId = null;
+          this.pollFallbackActive = false;
+          console.log('[TradingViewDataFeed] Stopped HTTP polling fallback (market-data tick received)');
+        }
+      }
 
       const normalizedSym = normalizeSymbol(rawSymbol);
 
@@ -569,7 +579,7 @@ export class TradingViewDataFeed {
   }
 
   /**
-   * HTTP polling fallback — only activated when WebSocket is unavailable.
+   * HTTP polling fallback — retained until the WebSocket proves it is streaming.
    */
   private startPollingFallback(): void {
     if (this._destroyed || this.pollFallbackActive) return;
@@ -577,7 +587,7 @@ export class TradingViewDataFeed {
 
     console.log('[TradingViewDataFeed] Starting HTTP polling fallback');
     this.pollingTimerId = setInterval(async () => {
-      if (this.subscribers.size === 0 || this.wsConnected) return;
+      if (this.subscribers.size === 0 || (this.wsConnected && this.wsHasReceivedValidTick)) return;
 
       for (const [, sub] of this.subscribers.entries()) {
         try {

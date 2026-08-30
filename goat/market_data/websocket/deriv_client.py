@@ -146,17 +146,14 @@ class DerivWebSocketClient:
             return False
 
     async def subscribe_symbol(self, deriv_ws_symbol: str) -> str:
-        """Subscribe to tick feed for a symbol and fetch initial historical ticks."""
+        """Open and track a continuous Deriv tick subscription for a symbol."""
         if deriv_ws_symbol in self._active_subscriptions:
             return self._active_subscriptions[deriv_ws_symbol]
 
         _log.info("subscribing_deriv_symbol", symbol=deriv_ws_symbol)
-        req_payload = {
-            "ticks_history": deriv_ws_symbol,
-            "count": 50,
-            "end": "latest",
-            "style": "ticks",
-        }
+        # ``ticks_history`` is one-shot. Use Deriv's native subscription so
+        # every subsequent provider tick reaches the ingestion pipeline.
+        req_payload = {"ticks": deriv_ws_symbol, "subscribe": 1}
         resp = await self.request(req_payload)
 
         if "error" in resp:
@@ -164,24 +161,9 @@ class DerivWebSocketClient:
             _log.error("subscription_failed", symbol=deriv_ws_symbol, error=err_msg)
             raise RuntimeError(f"Subscription failed for {deriv_ws_symbol}: {err_msg}")
 
-        # Ingest initial tick history payload into pipeline
-        if "history" in resp and self.on_tick:
-            hist = resp.get("history", {})
-            prices = hist.get("prices", [])
-            times = hist.get("times", [])
-            sym = resp.get("echo_req", {}).get("ticks_history", deriv_ws_symbol)
-            for p, t in zip(prices, times):
-                tick_payload = {
-                    "tick": {
-                        "symbol": sym,
-                        "quote": float(p),
-                        "epoch": int(t),
-                        "pip_size": 2,
-                    }
-                }
-                await self.on_tick(tick_payload)
-
-        sub_id = f"sub_{deriv_ws_symbol}"
+        # The receiver loop forwards the initial tick response and every later
+        # streamed tick. Replaying the response here would duplicate it.
+        sub_id = str(resp.get("subscription", {}).get("id") or f"sub_{deriv_ws_symbol}")
         self._active_subscriptions[deriv_ws_symbol] = sub_id
         _log.info("subscribed_deriv_symbol", symbol=deriv_ws_symbol, sub_id=sub_id)
         return sub_id

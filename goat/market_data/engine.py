@@ -172,6 +172,14 @@ class LiveMarketDataIngestionEngine:
             return buffer_ticks
         return self.writer.get_ticks_from_db(symbol_id, limit=limit)
 
+    def get_latest_ticks(self) -> list[LiveTick]:
+        """Return the most recent in-memory tick for each supported symbol."""
+        return [
+            tick
+            for symbol_id in SUPPORTED_SYMBOLS
+            if (tick := self.buffer.get_latest_tick(symbol_id)) is not None
+        ]
+
     def get_latest_candle(self, symbol_id: str, timeframe: str = "1M") -> MarketCandle | None:
         """Get latest forming or completed candle for symbol and timeframe."""
         return self.candle_builder.get_latest_candle(symbol_id, timeframe=timeframe)
